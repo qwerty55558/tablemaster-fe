@@ -1,10 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useCallback, useEffect, useMemo } from "react"
 import Link from "next/link"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { z } from "zod"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -30,52 +29,14 @@ import {
   Shield,
   Eye,
   EyeOff,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react"
 import { LogoIcon } from "@/components/ui/logo"
-
-// ================================
-// Zod 스키마 정의
-// ================================
-
-const signupSchema = z
-  .object({
-    name: z
-      .string()
-      .min(2, "이름은 최소 2자 이상이어야 합니다")
-      .max(50, "이름은 50자를 초과할 수 없습니다"),
-    email: z
-      .string()
-      .min(1, "이메일을 입력해주세요")
-      .email("올바른 이메일 형식이 아닙니다"),
-    phone: z
-      .string()
-      .min(1, "전화번호를 입력해주세요")
-      .regex(
-        /^01[0-9]-?[0-9]{3,4}-?[0-9]{4}$/,
-        "올바른 전화번호 형식이 아닙니다"
-      ),
-    password: z
-      .string()
-      .min(8, "비밀번호는 최소 8자 이상이어야 합니다")
-      .regex(
-        /^(?=.*[a-zA-Z])(?=.*\d)/,
-        "비밀번호는 영문자와 숫자를 포함해야 합니다"
-      ),
-    confirmPassword: z.string().min(1, "비밀번호 확인을 입력해주세요"),
-    agreeTerms: z.boolean().refine((val) => val === true, {
-      message: "서비스 이용약관에 동의해주세요",
-    }),
-    agreePrivacy: z.boolean().refine((val) => val === true, {
-      message: "개인정보 처리방침에 동의해주세요",
-    }),
-    agreeMarketing: z.boolean().optional(),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "비밀번호가 일치하지 않습니다",
-    path: ["confirmPassword"],
-  })
-
-type SignupFormData = z.infer<typeof signupSchema>
+import { checkEmailAvailability, signup, SignupError } from "@/lib/api/auth"
+import { useRouter } from "next/navigation"
+import { type ValidationConfig } from "@/lib/validation/config"
+import { createSignupSchema, type SignupFormData } from "@/lib/validation/schemas"
 
 // ================================
 // 스텝 설정
@@ -88,16 +49,46 @@ const steps = [
 ]
 
 // ================================
-// 컴포넌트
+// 이메일 중복확인 상태 타입
+// ================================
+type EmailCheckStatus = "idle" | "checking" | "available" | "unavailable" | "error"
+
+// ================================
+// 중복확인 쿨다운 설정 (ms)
+// ================================
+const EMAIL_CHECK_COOLDOWN = 3000
+
+// ================================
+// Props 타입
+// ================================
+interface SignupFormProps extends React.ComponentProps<"div"> {
+  validationConfig: ValidationConfig
+}
+
+// ================================
+// 컴포넌트 (SSG - 서버에서 빌드 시 config 전달받음)
 // ================================
 
 export function SignupForm({
   className,
+  validationConfig,
   ...props
-}: React.ComponentProps<"div">) {
+}: SignupFormProps) {
+  const router = useRouter()
   const [currentStep, setCurrentStep] = useState(1)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+
+  // 동적 스키마 생성
+  const signupSchema = useMemo(() => {
+    return createSignupSchema(validationConfig)
+  }, [validationConfig])
+
+  // 이메일 중복확인 상태
+  const [emailCheckStatus, setEmailCheckStatus] = useState<EmailCheckStatus>("idle")
+  const [emailCheckMessage, setEmailCheckMessage] = useState("")
+  const [lastCheckedEmail, setLastCheckedEmail] = useState("")
 
   const {
     register,
@@ -126,6 +117,81 @@ export function SignupForm({
   const agreeMarketing = watch("agreeMarketing")
   const password = watch("password")
   const phone = watch("phone")
+  const email = watch("email")
+
+  // 중복확인 쿨다운 상태
+  const [lastCheckTime, setLastCheckTime] = useState<number>(0)
+  const [cooldownRemaining, setCooldownRemaining] = useState<number>(0)
+
+  // 쿨다운 타이머
+  useEffect(() => {
+    if (cooldownRemaining <= 0) return
+
+    const timer = setInterval(() => {
+      const remaining = Math.max(0, lastCheckTime + EMAIL_CHECK_COOLDOWN - Date.now())
+      setCooldownRemaining(remaining)
+    }, 100)
+
+    return () => clearInterval(timer)
+  }, [cooldownRemaining, lastCheckTime])
+
+  // 이메일 중복확인 함수
+  const handleCheckEmail = useCallback(async () => {
+    const currentEmail = email
+
+    // 쿨다운 체크
+    const now = Date.now()
+    const timeSinceLastCheck = now - lastCheckTime
+    if (timeSinceLastCheck < EMAIL_CHECK_COOLDOWN) {
+      const remaining = EMAIL_CHECK_COOLDOWN - timeSinceLastCheck
+      setCooldownRemaining(remaining)
+      setEmailCheckStatus("error")
+      setEmailCheckMessage(`${Math.ceil(remaining / 1000)}초 후에 다시 시도해주세요`)
+      return
+    }
+
+    // 이메일 형식 검증 (클라이언트 사전 체크)
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!currentEmail || !emailRegex.test(currentEmail)) {
+      setEmailCheckStatus("error")
+      setEmailCheckMessage("올바른 이메일 형식을 입력해주세요")
+      return
+    }
+
+    // 이미 확인한 이메일이면 스킵
+    if (currentEmail === lastCheckedEmail && emailCheckStatus === "available") {
+      return
+    }
+
+    setEmailCheckStatus("checking")
+    setEmailCheckMessage("")
+    setLastCheckTime(now)
+    setCooldownRemaining(EMAIL_CHECK_COOLDOWN)
+
+    try {
+      const result = await checkEmailAvailability(currentEmail)
+      
+      if (result.available) {
+        setEmailCheckStatus("available")
+        setEmailCheckMessage("사용 가능한 이메일입니다")
+        setLastCheckedEmail(currentEmail)
+      } else {
+        setEmailCheckStatus("unavailable")
+        setEmailCheckMessage(result.message || "이미 사용 중인 이메일입니다")
+      }
+    } catch (error) {
+      setEmailCheckStatus("error")
+      setEmailCheckMessage("이메일 확인 중 오류가 발생했습니다. 다시 시도해주세요.")
+    }
+  }, [email, lastCheckedEmail, emailCheckStatus, lastCheckTime])
+
+  // 이메일이 변경되면 상태 초기화
+  useEffect(() => {
+    if (email !== lastCheckedEmail) {
+      setEmailCheckStatus("idle")
+      setEmailCheckMessage("")
+    }
+  }, [email, lastCheckedEmail])
 
   // 비밀번호 강도 체크
   const getPasswordStrength = (pwd: string) => {
@@ -148,6 +214,12 @@ export function SignupForm({
     let isValid = false
     if (currentStep === 1) {
       isValid = await trigger(["name", "email", "phone"])
+      
+      // 이메일 중복확인 필수 체크
+      if (isValid && emailCheckStatus !== "available") {
+        setEmailCheckMessage("이메일 중복확인을 해주세요")
+        return
+      }
     } else if (currentStep === 2) {
       isValid = await trigger(["password", "confirmPassword"])
     }
@@ -159,16 +231,60 @@ export function SignupForm({
   }
 
   const onSubmit = async (data: SignupFormData) => {
-    console.log("회원가입 데이터:", data)
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-    alert("회원가입이 완료되었습니다!")
+    setSubmitError(null)
+    
+    try {
+      const result = await signup({
+        name: data.name,
+        email: data.email,
+        phone: data.phone.replace(/-/g, ""), // 하이픈 제거
+        password: data.password,
+        agreeService: data.agreeTerms,
+        agreePrivacy: data.agreePrivacy,
+        agreeMarketing: data.agreeMarketing,
+      })
+      
+      console.log("회원가입 성공:", result)
+      
+      // 성공 시 로그인 페이지로 이동
+      router.push("/login?signup=success")
+    } catch (error) {
+      console.error("회원가입 오류:", error)
+      
+      if (error instanceof SignupError) {
+        // 필드별 에러가 있으면 해당 필드에 표시
+        const fieldErrors = error.getAllFieldErrors()
+        if (Object.keys(fieldErrors).length > 0) {
+          // 각 필드에 서버 에러 메시지 설정
+          Object.entries(fieldErrors).forEach(([field, message]) => {
+            // 필드명 매핑 (서버 필드명 -> 폼 필드명)
+            const formField = field === "agreeService" ? "agreeTerms" : field
+            if (formField in errors || ["name", "email", "phone", "password"].includes(formField)) {
+              // setError는 react-hook-form에서 제공
+              console.log(`서버 에러 [${formField}]: ${message}`)
+            }
+          })
+        }
+        setSubmitError(error.message)
+      } else if (error instanceof Error) {
+        setSubmitError(error.message)
+      } else {
+        setSubmitError("회원가입 중 오류가 발생했습니다. 다시 시도해주세요.")
+      }
+    }
   }
 
   // 전화번호 포맷팅 함수
+  // 010-XXX-XXXX (10자리) 또는 010-XXXX-XXXX (11자리)
   const formatPhoneNumber = (value: string) => {
     const numbers = value.replace(/[^0-9]/g, "")
     if (numbers.length <= 3) return numbers
-    if (numbers.length <= 7) return `${numbers.slice(0, 3)}-${numbers.slice(3)}`
+    if (numbers.length <= 6) return `${numbers.slice(0, 3)}-${numbers.slice(3)}`
+    if (numbers.length <= 10) {
+      // 10자리: 010-XXX-XXXX
+      return `${numbers.slice(0, 3)}-${numbers.slice(3, 6)}-${numbers.slice(6, 10)}`
+    }
+    // 11자리: 010-XXXX-XXXX
     return `${numbers.slice(0, 3)}-${numbers.slice(3, 7)}-${numbers.slice(7, 11)}`
   }
 
@@ -273,18 +389,61 @@ export function SignupForm({
 
                 <Field>
                   <FieldLabel htmlFor="email">이메일</FieldLabel>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="name@company.com"
-                      className="pl-10"
-                      aria-invalid={!!errors.email}
-                      {...register("email")}
-                    />
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="name@company.com"
+                        className={cn(
+                          "pl-10 pr-10",
+                          emailCheckStatus === "available" && "border-green-500 focus-visible:ring-green-500",
+                          emailCheckStatus === "unavailable" && "border-destructive focus-visible:ring-destructive"
+                        )}
+                        aria-invalid={!!errors.email || emailCheckStatus === "unavailable"}
+                        {...register("email")}
+                      />
+                      {/* 상태 아이콘 */}
+                      {emailCheckStatus === "available" && (
+                        <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-green-500" />
+                      )}
+                      {emailCheckStatus === "unavailable" && (
+                        <XCircle className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-destructive" />
+                      )}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="default"
+                      onClick={handleCheckEmail}
+                      disabled={emailCheckStatus === "checking" || !email || !!errors.email || cooldownRemaining > 0}
+                      className="shrink-0 min-w-[90px]"
+                    >
+                      {emailCheckStatus === "checking" ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : cooldownRemaining > 0 ? (
+                        `${Math.ceil(cooldownRemaining / 1000)}초`
+                      ) : (
+                        "중복확인"
+                      )}
+                    </Button>
                   </div>
-                  <FieldError>{errors.email?.message}</FieldError>
+                  {/* 에러 메시지 또는 확인 결과 메시지 */}
+                  {errors.email?.message ? (
+                    <FieldError>{errors.email.message}</FieldError>
+                  ) : emailCheckMessage ? (
+                    <p
+                      className={cn(
+                        "text-sm mt-1",
+                        emailCheckStatus === "available" && "text-green-600",
+                        emailCheckStatus === "unavailable" && "text-destructive",
+                        emailCheckStatus === "error" && "text-destructive"
+                      )}
+                    >
+                      {emailCheckMessage}
+                    </p>
+                  ) : null}
                 </Field>
 
                 <Field>
@@ -379,18 +538,34 @@ export function SignupForm({
                 <div className="rounded-lg bg-muted/50 p-4 text-sm text-muted-foreground">
                   <p className="font-medium text-foreground mb-2">비밀번호 요구사항</p>
                   <ul className="space-y-1">
-                    <li className={cn("flex items-center gap-2", password.length >= 8 && "text-green-600")}>
-                      <Check className={cn("h-3 w-3", password.length >= 8 ? "opacity-100" : "opacity-30")} />
-                      최소 8자 이상
+                    <li className={cn("flex items-center gap-2", password.length >= validationConfig.password.minLength && "text-green-600")}>
+                      <Check className={cn("h-3 w-3", password.length >= validationConfig.password.minLength ? "opacity-100" : "opacity-30")} />
+                      최소 {validationConfig.password.minLength}자 이상
                     </li>
-                    <li className={cn("flex items-center gap-2", /[a-zA-Z]/.test(password) && "text-green-600")}>
-                      <Check className={cn("h-3 w-3", /[a-zA-Z]/.test(password) ? "opacity-100" : "opacity-30")} />
-                      영문자 포함
-                    </li>
-                    <li className={cn("flex items-center gap-2", /\d/.test(password) && "text-green-600")}>
-                      <Check className={cn("h-3 w-3", /\d/.test(password) ? "opacity-100" : "opacity-30")} />
-                      숫자 포함
-                    </li>
+                    {validationConfig.password.requireUppercase && (
+                      <li className={cn("flex items-center gap-2", /[A-Z]/.test(password) && "text-green-600")}>
+                        <Check className={cn("h-3 w-3", /[A-Z]/.test(password) ? "opacity-100" : "opacity-30")} />
+                        대문자 포함
+                      </li>
+                    )}
+                    {validationConfig.password.requireLowercase && (
+                      <li className={cn("flex items-center gap-2", /[a-z]/.test(password) && "text-green-600")}>
+                        <Check className={cn("h-3 w-3", /[a-z]/.test(password) ? "opacity-100" : "opacity-30")} />
+                        소문자 포함
+                      </li>
+                    )}
+                    {validationConfig.password.requireNumber && (
+                      <li className={cn("flex items-center gap-2", /\d/.test(password) && "text-green-600")}>
+                        <Check className={cn("h-3 w-3", /\d/.test(password) ? "opacity-100" : "opacity-30")} />
+                        숫자 포함
+                      </li>
+                    )}
+                    {validationConfig.password.requireSpecialChar && (
+                      <li className={cn("flex items-center gap-2", /[@$!%*#?&]/.test(password) && "text-green-600")}>
+                        <Check className={cn("h-3 w-3", /[@$!%*#?&]/.test(password) ? "opacity-100" : "opacity-30")} />
+                        특수문자 포함 (@$!%*#?&)
+                      </li>
+                    )}
                   </ul>
                 </div>
               </FieldGroup>
@@ -489,6 +664,13 @@ export function SignupForm({
                 {(errors.agreeTerms || errors.agreePrivacy) && (
                   <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-lg">
                     필수 약관에 동의해주세요.
+                  </div>
+                )}
+
+                {/* 회원가입 에러 메시지 */}
+                {submitError && (
+                  <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-lg">
+                    {submitError}
                   </div>
                 )}
               </FieldGroup>
