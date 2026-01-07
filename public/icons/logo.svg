@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <!-- Tablet/Table device -->
+  <rect x="6" y="4" width="36" height="40" rx="4" stroke="currentColor" stroke-width="3" fill="none"/>
+  
+  <!-- Screen area -->
+  <rect x="10" y="8" width="28" height="28" rx="2" fill="currentColor" opacity="0.1"/>
+  
+  <!-- Check mark -->
+  <path d="M16 22L22 28L32 16" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <!-- Home button / indicator -->
+  <circle cx="24" cy="40" r="2" fill="currentColor"/>
+</svg>

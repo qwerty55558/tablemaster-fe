@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Table top -->
+  <rect x="2" y="8" width="20" height="3" rx="1"/>
+  <!-- Table legs -->
+  <path d="M4 11v8"/>
+  <path d="M20 11v8"/>
+  <path d="M8 11v8"/>
+  <path d="M16 11v8"/>
+</svg>
