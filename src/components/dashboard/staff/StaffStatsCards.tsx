@@ -1,12 +1,10 @@
 "use client"
 
 import {
-  IconTrendingDown,
-  IconTrendingUp,
-  IconClipboardCheck,
-  IconClock,
-  IconCalendarEvent,
-  IconAlertCircle,
+  IconLayoutGrid,
+  IconMessageCircle,
+  IconUsers,
+  IconUserPlus,
 } from "@tabler/icons-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -18,194 +16,123 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
-import { useStaffDashboardMetrics } from "@/hooks/use-metrics"
-import { cn } from "@/lib/utils"
 
-function StatsCardSkeleton() {
-  return (
-    <Card className="@container/card">
-      <CardHeader>
-        <Skeleton className="h-4 w-24" />
-        <Skeleton className="h-8 w-20 mt-2" />
-        <CardAction>
-          <Skeleton className="h-5 w-16" />
-        </CardAction>
-      </CardHeader>
-      <CardFooter className="flex-col items-start gap-1.5">
-        <Skeleton className="h-4 w-32" />
-        <Skeleton className="h-4 w-28" />
-      </CardFooter>
-    </Card>
-  )
+// 더미 데이터 - 나중에 API 연동
+const mockData = {
+  totalTables: 24,
+  activeTables: 18,
+  emptyTables: 6,
+  todayGuests: 156,
+  maleGuests: 82,
+  femaleGuests: 74,
+  activeChats: 12,
+  pendingEntry: 3,
 }
 
-function ErrorCard({ message }: { message: string }) {
-  return (
-    <Card className="@container/card border-destructive/50">
-      <CardHeader>
-        <CardDescription className="text-destructive flex items-center gap-2">
-          <IconAlertCircle className="size-4" />
-          데이터 로드 실패
-        </CardDescription>
-        <CardTitle className="text-lg text-muted-foreground">--</CardTitle>
-      </CardHeader>
-      <CardFooter className="flex-col items-start gap-1.5 text-sm">
-        <div className="text-destructive text-xs">{message}</div>
-      </CardFooter>
-    </Card>
-  )
-}
-
-interface StaffStatsCardsProps {
-  userId?: string
-}
-
-export function StaffStatsCards({ userId }: StaffStatsCardsProps) {
-  const { data: metrics, isLoading, isError, error } = useStaffDashboardMetrics(userId)
-
-  if (isLoading) {
-    return (
-      <div className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card grid grid-cols-1 gap-4 px-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
-        <StatsCardSkeleton />
-        <StatsCardSkeleton />
-        <StatsCardSkeleton />
-        <StatsCardSkeleton />
-      </div>
-    )
-  }
-
-  if (isError) {
-    return (
-      <div className="grid grid-cols-1 gap-4 px-4 lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
-        <ErrorCard message={error?.message || "Unknown error"} />
-        <ErrorCard message={error?.message || "Unknown error"} />
-        <ErrorCard message={error?.message || "Unknown error"} />
-        <ErrorCard message={error?.message || "Unknown error"} />
-      </div>
-    )
-  }
-
+export function StaffStatsCards() {
   const {
-    myTasks,
-    tasksDueToday,
-    completedTasks,
-    completedTasksChange,
-    hoursLogged,
-    weeklyTarget,
-    upcomingEvents,
-    nextEventName,
-  } = metrics!
+    totalTables,
+    activeTables,
+    emptyTables,
+    todayGuests,
+    maleGuests,
+    femaleGuests,
+    activeChats,
+    pendingEntry,
+  } = mockData
 
-  const getChangeIcon = (change: number) =>
-    change >= 0 ? <IconTrendingUp className="size-4" /> : <IconTrendingDown className="size-4" />
-
-  const hoursProgress = Math.round((hoursLogged / weeklyTarget) * 100)
-  const isOnTrack = hoursProgress >= 70
+  const occupancyRate = Math.round((activeTables / totalTables) * 100)
 
   return (
     <div className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card grid grid-cols-1 gap-4 px-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
-      {/* My Tasks */}
+      {/* 테이블 현황 */}
       <Card className="@container/card">
         <CardHeader>
-          <CardDescription>My Tasks</CardDescription>
+          <CardDescription>테이블 현황</CardDescription>
           <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-            {myTasks}
+            {activeTables}/{totalTables}
           </CardTitle>
           <CardAction>
             <Badge variant="outline">
-              <IconClipboardCheck />
-              Active
+              <IconLayoutGrid className="size-3" />
+              {occupancyRate}%
             </Badge>
           </CardAction>
         </CardHeader>
         <CardFooter className="flex-col items-start gap-1.5 text-sm">
           <div className="line-clamp-1 flex gap-2 font-medium">
-            {tasksDueToday} due today <IconTrendingUp className="size-4" />
+            빈 테이블 {emptyTables}개
           </div>
-          <div className="text-muted-foreground">Assigned tasks this week</div>
+          <div className="text-muted-foreground">이용 중인 테이블 수</div>
         </CardFooter>
       </Card>
 
-      {/* Completed Tasks */}
+      {/* 오늘 입장객 */}
       <Card className="@container/card">
         <CardHeader>
-          <CardDescription>Completed Tasks</CardDescription>
+          <CardDescription>오늘 입장객</CardDescription>
           <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-            {completedTasks}
-          </CardTitle>
-          <CardAction>
-            <Badge
-              variant="outline"
-              className={cn(
-                completedTasksChange >= 0
-                  ? "text-green-600 border-green-600/50"
-                  : "text-red-600 border-red-600/50"
-              )}
-            >
-              {getChangeIcon(completedTasksChange)}
-              {completedTasksChange >= 0 ? "+" : ""}
-              {completedTasksChange}%
-            </Badge>
-          </CardAction>
-        </CardHeader>
-        <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          <div className="line-clamp-1 flex gap-2 font-medium">
-            {completedTasksChange >= 0 ? "Great progress!" : "Keep going!"}{" "}
-            {getChangeIcon(completedTasksChange)}
-          </div>
-          <div className="text-muted-foreground">Completed this month</div>
-        </CardFooter>
-      </Card>
-
-      {/* Hours Logged */}
-      <Card className="@container/card">
-        <CardHeader>
-          <CardDescription>Hours Logged</CardDescription>
-          <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-            {hoursLogged}h
+            {todayGuests}명
           </CardTitle>
           <CardAction>
             <Badge variant="outline">
-              <IconClock />
-              This Week
-            </Badge>
-          </CardAction>
-        </CardHeader>
-        <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          <div className="line-clamp-1 flex gap-2 font-medium">
-            {isOnTrack ? "On track" : "Need to catch up"}{" "}
-            {isOnTrack ? (
-              <IconTrendingUp className="size-4" />
-            ) : (
-              <IconTrendingDown className="size-4" />
-            )}
-          </div>
-          <div className="text-muted-foreground">
-            Weekly target: {weeklyTarget}h ({hoursProgress}%)
-          </div>
-        </CardFooter>
-      </Card>
-
-      {/* Upcoming Events */}
-      <Card className="@container/card">
-        <CardHeader>
-          <CardDescription>Upcoming Events</CardDescription>
-          <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-            {upcomingEvents}
-          </CardTitle>
-          <CardAction>
-            <Badge variant="outline">
-              <IconCalendarEvent />
+              <IconUsers className="size-3" />
               Today
             </Badge>
           </CardAction>
         </CardHeader>
         <CardFooter className="flex-col items-start gap-1.5 text-sm">
           <div className="line-clamp-1 flex gap-2 font-medium">
-            {upcomingEvents > 0 ? `Next: ${nextEventName}` : "No events today"}
+            남 {maleGuests} · 여 {femaleGuests}
           </div>
-          <div className="text-muted-foreground">Scheduled for today</div>
+          <div className="text-muted-foreground">성별 비율</div>
+        </CardFooter>
+      </Card>
+
+      {/* 활성 채팅 */}
+      <Card className="@container/card">
+        <CardHeader>
+          <CardDescription>활성 채팅</CardDescription>
+          <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+            {activeChats}
+          </CardTitle>
+          <CardAction>
+            <Badge variant="outline" className="text-green-600 border-green-600/50">
+              <IconMessageCircle className="size-3" />
+              Live
+            </Badge>
+          </CardAction>
+        </CardHeader>
+        <CardFooter className="flex-col items-start gap-1.5 text-sm">
+          <div className="line-clamp-1 flex gap-2 font-medium">
+            진행 중인 대화
+          </div>
+          <div className="text-muted-foreground">테이블 간 채팅 수</div>
+        </CardFooter>
+      </Card>
+
+      {/* 입장 대기 */}
+      <Card className="@container/card">
+        <CardHeader>
+          <CardDescription>입장 대기</CardDescription>
+          <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+            {pendingEntry}팀
+          </CardTitle>
+          <CardAction>
+            <Badge 
+              variant="outline" 
+              className={pendingEntry > 0 ? "text-amber-600 border-amber-600/50" : ""}
+            >
+              <IconUserPlus className="size-3" />
+              대기
+            </Badge>
+          </CardAction>
+        </CardHeader>
+        <CardFooter className="flex-col items-start gap-1.5 text-sm">
+          <div className="line-clamp-1 flex gap-2 font-medium">
+            {pendingEntry > 0 ? "입장 처리 필요" : "대기 없음"}
+          </div>
+          <div className="text-muted-foreground">입장 대기 중인 팀</div>
         </CardFooter>
       </Card>
     </div>

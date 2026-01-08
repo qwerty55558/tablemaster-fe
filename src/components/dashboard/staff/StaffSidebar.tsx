@@ -4,98 +4,59 @@ import * as React from "react"
 import {
   IconChartBar,
   IconDashboard,
-  IconDatabase,
-  IconFileDescription,
-  IconFolder,
-  IconHelp,
-  IconInnerShadowTop,
-  IconListDetails,
-  IconReport,
-  IconSearch,
-  IconSettings,
-  IconClipboardList,
-  IconCalendar,
+  IconLayoutGrid,
+  IconMessageCircle,
+  IconUserPlus,
+  IconShieldCheck,
 } from "@tabler/icons-react"
 
 import { NavMain } from "@/components/nav-main"
-import { NavDocuments } from "@/components/nav-documents"
-import { NavSecondary } from "@/components/nav-secondary"
 import { NavUser } from "@/components/nav-user"
+import { HelpDialog } from "@/components/dashboard/staff/HelpDialog"
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
+import { Logo } from "@/components/ui/logo"
 
 const staffData = {
-  user: {
-    name: "Staff User",
-    email: "staff@example.com",
-    avatar: "/avatars/staff.jpg",
-  },
   navMain: [
     {
-      title: "Dashboard",
+      title: "대시보드",
       url: "/staff/dashboard",
       icon: IconDashboard,
     },
     {
-      title: "My Tasks",
-      url: "/staff/tasks",
-      icon: IconClipboardList,
+      title: "테이블 관리",
+      url: "/staff/tables",
+      icon: IconLayoutGrid,
     },
     {
-      title: "Schedule",
-      url: "/staff/schedule",
-      icon: IconCalendar,
+      title: "입장 등록",
+      url: "/staff/entry",
+      icon: IconUserPlus,
     },
     {
-      title: "Projects",
-      url: "/staff/projects",
-      icon: IconFolder,
+      title: "채팅 모니터",
+      url: "/staff/chat-monitor",
+      icon: IconMessageCircle,
     },
     {
-      title: "Reports",
-      url: "/staff/reports",
+      title: "채팅 관리",
+      url: "/staff/moderation",
+      icon: IconShieldCheck,
+    },
+    {
+      title: "통계",
+      url: "/staff/stats",
       icon: IconChartBar,
-    },
-  ],
-  documents: [
-    {
-      name: "Data Library",
-      url: "#",
-      icon: IconDatabase,
-    },
-    {
-      name: "My Reports",
-      url: "#",
-      icon: IconReport,
-    },
-    {
-      name: "Documents",
-      url: "#",
-      icon: IconFileDescription,
-    },
-  ],
-  navSecondary: [
-    {
-      title: "Settings",
-      url: "#",
-      icon: IconSettings,
-    },
-    {
-      title: "Get Help",
-      url: "#",
-      icon: IconHelp,
-    },
-    {
-      title: "Search",
-      url: "#",
-      icon: IconSearch,
     },
   ],
 }
@@ -111,8 +72,8 @@ export function StaffSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
               className="data-[slot=sidebar-menu-button]:!p-1.5"
             >
               <a href="/staff/dashboard">
-                <IconInnerShadowTop className="!size-5" />
-                <span className="text-base font-semibold">Staff Portal</span>
+                <Logo className="!size-5" />
+                <span className="text-base font-semibold">TableMaster</span>
               </a>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -120,11 +81,20 @@ export function StaffSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={staffData.navMain} />
-        <NavDocuments items={staffData.documents} />
-        <NavSecondary items={staffData.navSecondary} className="mt-auto" />
+        
+        {/* 도움말 - 하단에 배치 */}
+        <SidebarGroup className="mt-auto">
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <HelpDialog />
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={staffData.user} />
+        <NavUser />
       </SidebarFooter>
     </Sidebar>
   )
