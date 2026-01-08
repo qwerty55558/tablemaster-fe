@@ -54,9 +54,9 @@ const steps = [
 type EmailCheckStatus = "idle" | "checking" | "available" | "unavailable" | "error"
 
 // ================================
-// 중복확인 쿨다운 설정 (ms)
+// 중복확인 내부 쿨다운 설정 (ms) - UI에 표시하지 않음
 // ================================
-const EMAIL_CHECK_COOLDOWN = 3000
+const EMAIL_CHECK_COOLDOWN = 2000
 
 // ================================
 // Props 타입
@@ -119,34 +119,17 @@ export function SignupForm({
   const phone = watch("phone")
   const email = watch("email")
 
-  // 중복확인 쿨다운 상태
+  // 중복확인 내부 쿨다운 (UI에 표시하지 않음)
   const [lastCheckTime, setLastCheckTime] = useState<number>(0)
-  const [cooldownRemaining, setCooldownRemaining] = useState<number>(0)
-
-  // 쿨다운 타이머
-  useEffect(() => {
-    if (cooldownRemaining <= 0) return
-
-    const timer = setInterval(() => {
-      const remaining = Math.max(0, lastCheckTime + EMAIL_CHECK_COOLDOWN - Date.now())
-      setCooldownRemaining(remaining)
-    }, 100)
-
-    return () => clearInterval(timer)
-  }, [cooldownRemaining, lastCheckTime])
 
   // 이메일 중복확인 함수
   const handleCheckEmail = useCallback(async () => {
     const currentEmail = email
 
-    // 쿨다운 체크
+    // 내부 쿨다운 체크 (UI에 표시하지 않고 조용히 무시)
     const now = Date.now()
     const timeSinceLastCheck = now - lastCheckTime
     if (timeSinceLastCheck < EMAIL_CHECK_COOLDOWN) {
-      const remaining = EMAIL_CHECK_COOLDOWN - timeSinceLastCheck
-      setCooldownRemaining(remaining)
-      setEmailCheckStatus("error")
-      setEmailCheckMessage(`${Math.ceil(remaining / 1000)}초 후에 다시 시도해주세요`)
       return
     }
 
@@ -166,7 +149,6 @@ export function SignupForm({
     setEmailCheckStatus("checking")
     setEmailCheckMessage("")
     setLastCheckTime(now)
-    setCooldownRemaining(EMAIL_CHECK_COOLDOWN)
 
     try {
       const result = await checkEmailAvailability(currentEmail)
@@ -217,6 +199,7 @@ export function SignupForm({
       
       // 이메일 중복확인 필수 체크
       if (isValid && emailCheckStatus !== "available") {
+        setEmailCheckStatus("error")
         setEmailCheckMessage("이메일 중복확인을 해주세요")
         return
       }
@@ -228,6 +211,14 @@ export function SignupForm({
 
   const handlePrevStep = () => {
     setCurrentStep((prev) => Math.max(prev - 1, 1))
+  }
+
+  // 엔터 키로 다음 스텝 이동 (마지막 스텝 제외)
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && currentStep < 3) {
+      e.preventDefault()
+      handleNextStep()
+    }
   }
 
   const onSubmit = async (data: SignupFormData) => {
@@ -367,7 +358,7 @@ export function SignupForm({
         </div>
 
         <CardContent className="p-6">
-          <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col">
+          <form onSubmit={handleSubmit(onSubmit)} onKeyDown={handleKeyDown} className="flex flex-col">
             {/* Step 1: 기본 정보 */}
             <div className={cn("space-y-5", currentStep !== 1 && "hidden")}>
               <FieldGroup>
@@ -399,9 +390,9 @@ export function SignupForm({
                         className={cn(
                           "pl-10 pr-10",
                           emailCheckStatus === "available" && "border-green-500 focus-visible:ring-green-500",
-                          emailCheckStatus === "unavailable" && "border-destructive focus-visible:ring-destructive"
+                          (emailCheckStatus === "unavailable" || emailCheckStatus === "error") && "border-destructive focus-visible:ring-destructive"
                         )}
-                        aria-invalid={!!errors.email || emailCheckStatus === "unavailable"}
+                        aria-invalid={!!errors.email || emailCheckStatus === "unavailable" || emailCheckStatus === "error"}
                         {...register("email")}
                       />
                       {/* 상태 아이콘 */}
@@ -417,13 +408,13 @@ export function SignupForm({
                       variant="outline"
                       size="default"
                       onClick={handleCheckEmail}
-                      disabled={emailCheckStatus === "checking" || !email || !!errors.email || cooldownRemaining > 0}
-                      className="shrink-0 min-w-[90px]"
+                      disabled={emailCheckStatus === "checking" || emailCheckStatus === "available" || !email || !!errors.email}
+                      className="shrink-0 min-w-[90px] cursor-pointer"
                     >
                       {emailCheckStatus === "checking" ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : cooldownRemaining > 0 ? (
-                        `${Math.ceil(cooldownRemaining / 1000)}초`
+                      ) : emailCheckStatus === "available" ? (
+                        <Check className="h-4 w-4" />
                       ) : (
                         "중복확인"
                       )}
@@ -435,10 +426,9 @@ export function SignupForm({
                   ) : emailCheckMessage ? (
                     <p
                       className={cn(
-                        "text-sm mt-1",
+                        "text-sm -mt-1",
                         emailCheckStatus === "available" && "text-green-600",
-                        emailCheckStatus === "unavailable" && "text-destructive",
-                        emailCheckStatus === "error" && "text-destructive"
+                        (emailCheckStatus === "unavailable" || emailCheckStatus === "error") && "text-destructive"
                       )}
                     >
                       {emailCheckMessage}
@@ -662,16 +652,16 @@ export function SignupForm({
                 </div>
 
                 {(errors.agreeTerms || errors.agreePrivacy) && (
-                  <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-lg">
+                  <p className="text-sm text-destructive -mt-1">
                     필수 약관에 동의해주세요.
-                  </div>
+                  </p>
                 )}
 
                 {/* 회원가입 에러 메시지 */}
                 {submitError && (
-                  <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-lg">
+                  <p className="text-sm text-destructive -mt-1">
                     {submitError}
-                  </div>
+                  </p>
                 )}
               </FieldGroup>
             </div>
@@ -683,7 +673,7 @@ export function SignupForm({
                   type="button"
                   variant="outline"
                   size="lg"
-                  className="flex-1"
+                  className="flex-1 cursor-pointer"
                   onClick={handlePrevStep}
                 >
                   <ArrowLeft className="h-4 w-4 mr-2" />
@@ -694,10 +684,10 @@ export function SignupForm({
                   type="button"
                   variant="ghost"
                   size="lg"
-                  className="flex-1"
+                  className="flex-1 cursor-pointer"
                   asChild
                 >
-                  <Link href="/login">
+                  <Link href="/login" >
                     로그인으로
                   </Link>
                 </Button>
@@ -707,7 +697,7 @@ export function SignupForm({
                 <Button
                   type="button"
                   size="lg"
-                  className="flex-1"
+                  className="flex-1 cursor-pointer"
                   onClick={handleNextStep}
                 >
                   다음
@@ -717,7 +707,7 @@ export function SignupForm({
                 <Button
                   type="submit"
                   size="lg"
-                  className="flex-1"
+                  className="flex-1 cursor-pointer"
                   disabled={isSubmitting}
                 >
                   {isSubmitting ? (
@@ -740,7 +730,7 @@ export function SignupForm({
               이미 계정이 있으신가요?{" "}
               <Link
                 href="/login"
-                className="text-primary font-medium hover:underline"
+                className="text-primary cursor-pointer font-medium hover:underline"
               >
                 로그인
               </Link>

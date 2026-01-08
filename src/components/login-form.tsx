@@ -1,5 +1,11 @@
+"use client"
+
+import { useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
+import { useRouter, useSearchParams } from "next/navigation"
+import { signIn } from "next-auth/react"
+import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -12,16 +18,75 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { LogoIcon } from "@/components/ui/logo"
+import { SignupSuccessToast } from "@/components/signup-success-toast"
+
+interface LoginFormProps extends React.ComponentProps<"div"> {}
 
 export function LoginForm({
   className,
   ...props
-}: React.ComponentProps<"div">) {
+}: LoginFormProps) {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const showSignupToast = searchParams.get("signup") === "success"
+  const [isLoading, setIsLoading] = useState(false)
+  const [isSocialLoading, setIsSocialLoading] = useState<"google" | "kakao" | null>(null)
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setIsLoading(true)
+
+    const formData = new FormData(e.currentTarget)
+    const email = formData.get("email") as string
+    const password = formData.get("password") as string
+
+    try {
+      const result = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
+      })
+
+      if (result?.error) {
+        toast.error("로그인 실패", {
+          description: "이메일 또는 비밀번호가 올바르지 않습니다.",
+        })
+        return
+      }
+
+      if (result?.ok) {
+        // 로그인 성공 - 세션에서 역할 확인 후 리디렉트
+        // 미들웨어가 역할 기반 리디렉트를 처리하므로 기본 경로로 이동
+        router.push("/staff/dashboard")
+        router.refresh()
+      }
+    } catch {
+      toast.error("로그인 실패", {
+        description: "서버와 통신 중 오류가 발생했습니다.",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  async function handleSocialLogin(provider: "google" | "kakao") {
+    setIsSocialLoading(provider)
+    try {
+      await signIn(provider, { callbackUrl: "/staff/dashboard" })
+    } catch {
+      toast.error("소셜 로그인 실패", {
+        description: "다시 시도해 주세요.",
+      })
+      setIsSocialLoading(null)
+    }
+  }
+
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
+      {showSignupToast && <SignupSuccessToast />}
       <Card className="overflow-hidden p-0">
         <CardContent className="grid p-0 md:grid-cols-2">
-          <form className="p-6 md:p-8">
+          <form className="p-6 md:p-8" onSubmit={handleSubmit}>
             <FieldGroup>
               {/* Logo & Title */}
               <div className="flex flex-col items-center gap-4 text-center">
@@ -41,9 +106,11 @@ export function LoginForm({
                 <FieldLabel htmlFor="email">이메일</FieldLabel>
                 <Input
                   id="email"
+                  name="email"
                   type="email"
                   placeholder="name@company.com"
                   required
+                  disabled={isLoading}
                 />
               </Field>
 
@@ -58,13 +125,23 @@ export function LoginForm({
                     비밀번호 찾기
                   </Link>
                 </div>
-                <Input id="password" type="password" required />
+                <Input
+                  id="password"
+                  name="password"
+                  type="password"
+                  required
+                  disabled={isLoading}
+                />
               </Field>
 
               {/* Login Button */}
               <Field>
-                <Button type="submit" className="w-full">
-                  로그인
+                <Button
+                  type="submit"
+                  className="w-full cursor-pointer"
+                  disabled={isLoading}
+                >
+                  {isLoading ? "로그인 중..." : "로그인"}
                 </Button>
               </Field>
 
@@ -75,23 +152,33 @@ export function LoginForm({
 
               {/* Social Login */}
               <Field className="grid grid-cols-2 gap-3">
-                <Button type="button" className="w-full">
+                <Button
+                  type="button"
+                  className="w-full cursor-pointer"
+                  onClick={() => handleSocialLogin("google")}
+                  disabled={isSocialLoading !== null}
+                >
                   <svg className="h-5 w-5 mr-2" viewBox="0 0 24 24">
                     <path
                       d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"
                       fill="currentColor"
                     />
                   </svg>
-                  Google
+                  {isSocialLoading === "google" ? "..." : "Google"}
                 </Button>
-                <Button type="button" className="w-full bg-[#FEE500] text-[#191919] hover:bg-[#FDD835]">
+                <Button
+                  type="button"
+                  className="w-full bg-[#FEE500] text-[#191919] hover:bg-[#FDD835] cursor-pointer"
+                  onClick={() => handleSocialLogin("kakao")}
+                  disabled={isSocialLoading !== null}
+                >
                   <svg className="h-5 w-5 mr-2" viewBox="0 0 24 24">
                     <path
                       d="M12 3C6.477 3 2 6.463 2 10.754c0 2.756 1.819 5.18 4.548 6.567-.2.744-.725 2.696-.832 3.118-.13.512.188.505.396.367.163-.109 2.593-1.757 3.639-2.469.727.107 1.478.163 2.249.163 5.523 0 10-3.463 10-7.746S17.523 3 12 3z"
                       fill="#191919"
                     />
                   </svg>
-                  Kakao
+                  {isSocialLoading === "kakao" ? "..." : "Kakao"}
                 </Button>
               </Field>
 

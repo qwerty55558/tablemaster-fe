@@ -1,7 +1,10 @@
 import "@/app/globals.css";
 import React from "react";
 import type { Metadata } from "next";
+import { Toaster } from "@/components/ui/sonner";
+import { AuthSessionProvider } from "@/components/providers/session-provider";
 import { QueryProvider } from "@/components/providers/query-provider";
+import { SessionExpiredHandler } from "@/components/session-expired-handler";
 
 export const metadata: Metadata = {
   title: "TableMaster - 데이터 관리의 모든 것을 쉽게",
@@ -16,7 +19,13 @@ export default function RootLayout({
   return (
     <html lang="ko" className="dark">
       <body className="antialiased">
-        <QueryProvider>{children}</QueryProvider>
+        <AuthSessionProvider>
+          <QueryProvider>
+            {children}
+            <SessionExpiredHandler />
+          </QueryProvider>
+        </AuthSessionProvider>
+        <Toaster />
       </body>
     </html>
   );
