@@ -165,7 +165,7 @@ export function SiteHeader() {
                 )}
               </Button>
             </SheetTrigger>
-            <SheetContent className="w-[400px] sm:w-[450px]">
+            <SheetContent className="w-100 sm:w-112.5">
               <SheetHeader>
                 <SheetTitle className="flex items-center gap-2">
                   <IconBell className="size-5" />
@@ -175,7 +175,7 @@ export function SiteHeader() {
                   실시간 매장 활동 알림
                 </SheetDescription>
               </SheetHeader>
-              <div className="mt-6 space-y-3">
+              <div className="mt-4 px-2 space-y-4">
                 {activities.map((activity) => {
                   const config = typeConfig[activity.type as keyof typeof typeConfig]
                   const Icon = config.icon
@@ -184,7 +184,7 @@ export function SiteHeader() {
                     <div
                       key={activity.id}
                       className={cn(
-                        "flex items-start gap-3 rounded-lg border p-3 transition-colors",
+                        "flex items-start gap-3 rounded-lg border p-4 transition-colors",
                         activity.isNew && "bg-accent/50"
                       )}
                     >
