@@ -9,6 +9,7 @@ import {
   IconUserMinus,
   IconUserPlus,
   IconAlertTriangle,
+  IconDeviceTablet,
 } from "@tabler/icons-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -24,6 +25,8 @@ import {
 } from "@/components/ui/sheet"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { cn } from "@/lib/utils"
+import { useNotifications } from "@/components/providers/admin-notification-provider"
+import type { ActivityType } from "@/lib/websocket/types"
 
 // 페이지별 타이틀 매핑
 const pageTitles: Record<string, string> = {
@@ -35,77 +38,10 @@ const pageTitles: Record<string, string> = {
   "/staff/stats": "통계",
   "/staff/profile": "내 프로필",
   "/admin/dashboard": "관리자 대시보드",
+  "/admin/profile": "내 프로필",
 }
 
-// 더미 활동 데이터
-const activities = [
-  {
-    id: 1,
-    type: "entry",
-    message: "A5 테이블에 4명(남2, 여2) 입장",
-    time: "방금 전",
-    staff: "김스태프",
-    isNew: true,
-  },
-  {
-    id: 2,
-    type: "chat",
-    message: "B2 ↔ C1 테이블 채팅 시작",
-    time: "2분 전",
-    staff: null,
-    isNew: true,
-  },
-  {
-    id: 3,
-    type: "gift",
-    message: "A1 → B3 테이블로 와인 선물",
-    time: "5분 전",
-    staff: null,
-    isNew: true,
-  },
-  {
-    id: 4,
-    type: "warning",
-    message: "D2 테이블 채팅에서 금칙어 감지",
-    time: "8분 전",
-    staff: null,
-    isNew: false,
-  },
-  {
-    id: 5,
-    type: "exit",
-    message: "C4 테이블 퇴장 처리",
-    time: "12분 전",
-    staff: "이스태프",
-    isNew: false,
-  },
-  {
-    id: 6,
-    type: "entry",
-    message: "B1 테이블에 3명(남1, 여2) 입장",
-    time: "15분 전",
-    staff: "김스태프",
-    isNew: false,
-  },
-  {
-    id: 7,
-    type: "chat",
-    message: "A2 ↔ D1 테이블 채팅 종료",
-    time: "20분 전",
-    staff: null,
-    isNew: false,
-  },
-  {
-    id: 8,
-    type: "gift",
-    message: "C1 → A1 테이블로 맥주 선물",
-    time: "25분 전",
-    staff: null,
-    isNew: false,
-  },
-]
-
-const typeConfig = {
+const typeConfig: Record<ActivityType, { icon: typeof IconBell; color: string; bg: string }> = {
   entry: {
     icon: IconUserPlus,
     color: "text-green-600",
@@ -131,15 +67,57 @@ const typeConfig = {
     color: "text-pink-600",
     bg: "bg-pink-500/10",
   },
+  device: {
+    icon: IconDeviceTablet,
+    color: "text-purple-600",
+    bg: "bg-purple-500/10",
+  },
 }
 
 export function SiteHeader() {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
-  const unreadCount = activities.filter((a) => a.isNew).length
 
-  // 현재 페이지 타이틀 가져오기
+  // Context에서 알림 상태 가져오기 (Admin 페이지에서만)
+  const isAdminPage = pathname.startsWith("/admin")
+
+  return isAdminPage ? <AdminSiteHeader /> : <DefaultSiteHeader />
+}
+
+function DefaultSiteHeader() {
+  const pathname = usePathname()
   const pageTitle = pageTitles[pathname] || "Dashboard"
+
+  return (
+    <header className="flex h-(--header-height) shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)">
+      <div className="flex w-full items-center gap-1 px-4 lg:gap-2 lg:px-6">
+        <SidebarTrigger className="-ml-1" />
+        <Separator
+          orientation="vertical"
+          className="mx-2 data-[orientation=vertical]:h-4"
+        />
+        <h1 className="text-base font-medium">{pageTitle}</h1>
+        <div className="ml-auto flex items-center gap-2">
+          <Button variant="ghost" size="icon" className="relative">
+            <IconBell className="size-5" />
+          </Button>
+        </div>
+      </div>
+    </header>
+  )
+}
+
+function AdminSiteHeader() {
+  const pathname = usePathname()
+  const [open, setOpen] = useState(false)
+  const { notifications, unreadCount, isShaking, markAllAsRead } = useNotifications()
+
+  const pageTitle = pageTitles[pathname] || "Dashboard"
+
+  const handleMarkAllAsRead = () => {
+    markAllAsRead()
+    setOpen(false)
+  }
 
   return (
     <header className="flex h-(--header-height) shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)">
@@ -154,10 +132,15 @@ export function SiteHeader() {
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="relative">
-                <IconBell className="size-5" />
+                <IconBell
+                  className={cn(
+                    "size-5 transition-transform",
+                    isShaking && "animate-bounce"
+                  )}
+                />
                 {unreadCount > 0 && (
-                  <Badge 
-                    variant="destructive" 
+                  <Badge
+                    variant="destructive"
                     className="absolute -top-1 -right-1 size-5 p-0 justify-center text-xs"
                   >
                     {unreadCount}
@@ -175,51 +158,65 @@ export function SiteHeader() {
                   실시간 매장 활동 알림
                 </SheetDescription>
               </SheetHeader>
-              <div className="mt-4 px-2 space-y-4">
-                {activities.map((activity) => {
-                  const config = typeConfig[activity.type as keyof typeof typeConfig]
-                  const Icon = config.icon
+              <div className="mt-4 px-2 space-y-4 max-h-[60vh] overflow-y-auto">
+                {notifications.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <IconBell className="size-12 text-muted-foreground mb-3" />
+                    <p className="text-sm font-medium text-foreground">
+                      알림이 없습니다
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      새로운 알림이 오면 여기에 표시됩니다
+                    </p>
+                  </div>
+                ) : (
+                  notifications.map((activity) => {
+                    const config = typeConfig[activity.type]
+                    const Icon = config.icon
 
-                  return (
-                    <div
-                      key={activity.id}
-                      className={cn(
-                        "flex items-start gap-3 rounded-lg border p-4 transition-colors",
-                        activity.isNew && "bg-accent/50"
-                      )}
-                    >
-                      <div className={cn("rounded-full p-2", config.bg)}>
-                        <Icon className={cn("size-4", config.color)} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2">
-                          <p className="text-sm font-medium">{activity.message}</p>
-                          {activity.isNew && (
-                            <Badge variant="secondary" className="text-xs shrink-0">
-                              NEW
-                            </Badge>
-                          )}
+                    return (
+                      <div
+                        key={activity.id}
+                        className={cn(
+                          "flex items-start gap-3 rounded-lg border p-4 transition-colors",
+                          activity.isNew && "bg-accent/50"
+                        )}
+                      >
+                        <div className={cn("rounded-full p-2", config.bg)}>
+                          <Icon className={cn("size-4", config.color)} />
                         </div>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-xs text-muted-foreground">
-                            {activity.time}
-                          </span>
-                          {activity.staff && (
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-sm font-medium">{activity.message}</p>
+                            {activity.isNew && (
+                              <Badge variant="secondary" className="text-xs shrink-0">
+                                NEW
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 mt-1">
                             <span className="text-xs text-muted-foreground">
-                              · {activity.staff}
+                              {activity.time}
                             </span>
-                          )}
+                            {activity.staff && (
+                              <span className="text-xs text-muted-foreground">
+                                · {activity.staff}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )
-                })}
+                    )
+                  })
+                )}
               </div>
-              <div className="mt-4 pt-4 border-t">
-                <Button variant="outline" className="w-full" onClick={() => setOpen(false)}>
-                  모두 읽음 처리
-                </Button>
-              </div>
+              {notifications.length > 0 && (
+                <div className="mt-4 pt-4 border-t">
+                  <Button variant="outline" className="w-full" onClick={handleMarkAllAsRead}>
+                    모두 읽음 처리
+                  </Button>
+                </div>
+              )}
             </SheetContent>
           </Sheet>
         </div>

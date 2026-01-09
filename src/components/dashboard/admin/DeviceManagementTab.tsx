@@ -1,11 +1,12 @@
 "use client"
 
 import * as React from "react"
-import { 
-  IconRefresh, 
+import {
+  IconRefresh,
   IconAlertCircle,
   IconInbox,
 } from "@tabler/icons-react"
+import { useQueryClient } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -33,6 +34,7 @@ import {
   useDeleteDevice,
   useToggleDeviceActive,
   usePendingDevices,
+  adminKeys,
 } from "@/hooks/use-admin"
 import type { Device } from "@/lib/api/admin"
 import { toast } from "sonner"
@@ -43,7 +45,8 @@ export function DeviceManagementTab() {
   const [selectedDevice, setSelectedDevice] = React.useState<Device | null>(null)
   const [deleteTarget, setDeleteTarget] = React.useState<Device | null>(null)
 
-  const { data: devices = [], isLoading, isError, error, refetch } = useDevices()
+  const queryClient = useQueryClient()
+  const { data: devices = [], isLoading, isFetching, isError, error } = useDevices()
   const { data: pendingDevices = [] } = usePendingDevices()
   const deleteDevice = useDeleteDevice()
   const toggleDevice = useToggleDeviceActive()
@@ -96,7 +99,7 @@ export function DeviceManagementTab() {
           <p className="text-sm text-muted-foreground mb-4">
             {error?.message || "알 수 없는 오류가 발생했습니다"}
           </p>
-          <Button onClick={() => refetch()} variant="outline">
+          <Button onClick={() => queryClient.invalidateQueries({ queryKey: adminKeys.devices() })} variant="outline">
             <IconRefresh className="mr-2 h-4 w-4" />
             다시 시도
           </Button>
@@ -119,10 +122,10 @@ export function DeviceManagementTab() {
             <Button
               variant="outline"
               size="icon"
-              onClick={() => refetch()}
-              disabled={isLoading}
+              onClick={() => queryClient.invalidateQueries({ queryKey: adminKeys.devices() })}
+              disabled={isFetching}
             >
-              <IconRefresh className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
+              <IconRefresh className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
             </Button>
             <Button 
               variant="outline" 

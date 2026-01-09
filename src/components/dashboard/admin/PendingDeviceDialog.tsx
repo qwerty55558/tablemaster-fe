@@ -21,7 +21,8 @@ import {
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Badge } from "@/components/ui/badge"
-import { usePendingDevices, useApproveDevice } from "@/hooks/use-admin"
+import { useQueryClient } from "@tanstack/react-query"
+import { usePendingDevices, useApproveDevice, adminKeys } from "@/hooks/use-admin"
 import { toast } from "sonner"
 import { motionConfig } from "@/components/motion"
 import type { PendingDevice } from "@/lib/api/admin"
@@ -134,7 +135,8 @@ export function PendingDeviceDialog({
   open,
   onOpenChange,
 }: PendingDeviceDialogProps) {
-  const { data: pendingDevices = [], isLoading, refetch } = usePendingDevices()
+  const queryClient = useQueryClient()
+  const { data: pendingDevices = [], isLoading, isFetching } = usePendingDevices()
   const approveDevice = useApproveDevice()
 
   const handleApprove = async (deviceId: string, deviceName?: string) => {
@@ -163,11 +165,11 @@ export function PendingDeviceDialog({
             <Button
               variant="outline"
               size="icon"
-              onClick={() => refetch()}
-              disabled={isLoading}
+              onClick={() => queryClient.invalidateQueries({ queryKey: adminKeys.pendingDevices() })}
+              disabled={isFetching}
               className="h-8 w-8 shrink-0"
             >
-              <IconRefresh className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
+              <IconRefresh className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
             </Button>
           </div>
           <DialogDescription>
