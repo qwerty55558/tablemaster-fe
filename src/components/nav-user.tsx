@@ -119,7 +119,7 @@ export function NavUser({ user: userOverride }: NavUserProps) {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <Link href="/staff/profile">
+              <Link href={session?.user?.roles?.includes("ROLE_ADMIN") ? "/admin/profile" : "/staff/profile"}>
                 <IconUserCircle />
                 내 프로필
               </Link>

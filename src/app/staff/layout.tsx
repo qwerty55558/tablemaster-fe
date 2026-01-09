@@ -1,6 +1,7 @@
 import React from "react"
 import { StaffSidebar } from "@/components/dashboard/staff/StaffSidebar"
 import { SiteHeader } from "@/components/site-header"
+import { PageTransitionWrapper } from "@/components/motion/PageTransitionWrapper"
 import {
   SidebarInset,
   SidebarProvider,
@@ -24,9 +25,9 @@ export default function StaffLayout({
       <SidebarInset>
         <SiteHeader />
         <div className="flex flex-1 flex-col">
-          <div className="@container/main flex flex-1 flex-col gap-2 mx-auto w-full max-w-7xl">
+          <PageTransitionWrapper className="@container/main flex flex-1 flex-col gap-2 mx-auto w-full max-w-7xl">
             {children}
-          </div>
+          </PageTransitionWrapper>
         </div>
       </SidebarInset>
     </SidebarProvider>

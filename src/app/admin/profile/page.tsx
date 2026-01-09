@@ -1,5 +1,5 @@
 import { ProfileContent } from "@/components/profile/ProfileContent"
 
-export default function StaffProfilePage() {
+export default function AdminProfilePage() {
   return <ProfileContent />
 }

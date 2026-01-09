@@ -44,3 +44,4 @@ next-env.d.ts
 # mcp settings
 opencode.json
 swagger-config.json
+.mcp.json

@@ -4,7 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { useRouter, useSearchParams } from "next/navigation"
-import { signIn } from "next-auth/react"
+import { signIn, getSession } from "next-auth/react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -56,8 +56,12 @@ export function LoginForm({
 
       if (result?.ok) {
         // 로그인 성공 - 세션에서 역할 확인 후 리디렉트
-        // 미들웨어가 역할 기반 리디렉트를 처리하므로 기본 경로로 이동
-        router.push("/staff/dashboard")
+        const session = await getSession()
+        const roles = session?.user?.roles || []
+        const redirectUrl = roles.includes("ROLE_ADMIN")
+          ? "/admin/dashboard"
+          : "/staff/dashboard"
+        router.push(redirectUrl)
         router.refresh()
       }
     } catch {
@@ -72,7 +76,8 @@ export function LoginForm({
   async function handleSocialLogin(provider: "google" | "kakao") {
     setIsSocialLoading(provider)
     try {
-      await signIn(provider, { callbackUrl: "/staff/dashboard" })
+      // callbackUrl을 /로 설정하면 미들웨어가 역할 기반으로 리디렉트 처리
+      await signIn(provider, { callbackUrl: "/" })
     } catch {
       toast.error("소셜 로그인 실패", {
         description: "다시 시도해 주세요.",

@@ -1,112 +1,60 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
+import { motion } from "framer-motion"
 import {
-  IconChartBar,
   IconDashboard,
-  IconDatabase,
-  IconFileDescription,
-  IconFolder,
-  IconHelp,
-  IconInnerShadowTop,
-  IconListDetails,
-  IconReport,
-  IconSearch,
-  IconSettings,
   IconUsers,
   IconShield,
-  IconUserCog,
 } from "@tabler/icons-react"
 
 import { NavMain } from "@/components/nav-main"
-import { NavDocuments } from "@/components/nav-documents"
-import { NavSecondary } from "@/components/nav-secondary"
 import { NavUser } from "@/components/nav-user"
+import { AdminHelpDialog } from "@/components/dashboard/admin/AdminHelpDialog"
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
   SidebarHeader,
   SidebarMenu,
-  SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuButton,
 } from "@/components/ui/sidebar"
+import { Logo } from "@/components/ui/logo"
+import { Switch } from "@/components/ui/switch"
 
 const adminData = {
-  user: {
-    name: "Admin User",
-    email: "admin@example.com",
-    avatar: "/avatars/admin.jpg",
-  },
   navMain: [
     {
-      title: "Dashboard",
+      title: "대시보드",
       url: "/admin/dashboard",
       icon: IconDashboard,
-    },
-    {
-      title: "User Management",
-      url: "/admin/users",
-      icon: IconUserCog,
-    },
-    {
-      title: "Staff Management",
-      url: "/admin/staff",
-      icon: IconUsers,
-    },
-    {
-      title: "Analytics",
-      url: "/admin/analytics",
-      icon: IconChartBar,
-    },
-    {
-      title: "Projects",
-      url: "/admin/projects",
-      icon: IconFolder,
-    },
-    {
-      title: "System Settings",
-      url: "/admin/settings",
-      icon: IconShield,
-    },
-  ],
-  documents: [
-    {
-      name: "Data Library",
-      url: "#",
-      icon: IconDatabase,
-    },
-    {
-      name: "Reports",
-      url: "#",
-      icon: IconReport,
-    },
-    {
-      name: "Audit Logs",
-      url: "#",
-      icon: IconFileDescription,
-    },
-  ],
-  navSecondary: [
-    {
-      title: "Settings",
-      url: "#",
-      icon: IconSettings,
-    },
-    {
-      title: "Get Help",
-      url: "#",
-      icon: IconHelp,
-    },
-    {
-      title: "Search",
-      url: "#",
-      icon: IconSearch,
     },
   ],
 }
 
+// 아이콘 애니메이션 variants
+const iconVariants = {
+  active: { 
+    scale: 1.15, 
+    opacity: 1,
+  },
+  inactive: { 
+    scale: 0.9, 
+    opacity: 0.4,
+  }
+}
+
 export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const router = useRouter()
+
+  const handleSwitchToStaff = () => {
+    router.push("/staff/dashboard")
+  }
+
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
@@ -117,8 +65,9 @@ export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
               className="data-[slot=sidebar-menu-button]:!p-1.5"
             >
               <a href="/admin/dashboard">
-                <IconInnerShadowTop className="!size-5" />
-                <span className="text-base font-semibold">Admin Console</span>
+                <Logo className="!size-5" />
+                <span className="text-base font-semibold">TableMaster</span>
+                <span className="ml-1 text-xs text-muted-foreground">Admin</span>
               </a>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -126,11 +75,49 @@ export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={adminData.navMain} />
-        <NavDocuments items={adminData.documents} />
-        <NavSecondary items={adminData.navSecondary} className="mt-auto" />
+        
+        {/* 하단 그룹: 뷰 전환 + 도움말 */}
+        <SidebarGroup className="mt-auto">
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {/* Admin/Staff 뷰 전환 토글 - 컴팩트, 왼쪽 정렬, 스위치 고정 */}
+              <SidebarMenuItem>
+                <motion.div 
+                  className="flex items-center gap-2 px-2 py-1.5"
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <motion.div
+                    variants={iconVariants}
+                    animate="inactive"
+                    transition={{ duration: 0.2, ease: "easeInOut" }}
+                  >
+                    <IconUsers className="size-4 text-primary" />
+                  </motion.div>
+                  <Switch
+                    checked={true}
+                    onCheckedChange={handleSwitchToStaff}
+                    className="data-[state=checked]:bg-primary data-[state=unchecked]:bg-muted-foreground/30"
+                  />
+                  <motion.div
+                    variants={iconVariants}
+                    animate="active"
+                    transition={{ duration: 0.2, ease: "easeInOut" }}
+                  >
+                    <IconShield className="size-4 text-primary" />
+                  </motion.div>
+                </motion.div>
+              </SidebarMenuItem>
+              
+              {/* 도움말 */}
+              <SidebarMenuItem>
+                <AdminHelpDialog />
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={adminData.user} />
+        <NavUser />
       </SidebarFooter>
     </Sidebar>
   )

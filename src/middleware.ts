@@ -40,8 +40,14 @@ export default auth((req) => {
     return NextResponse.next()
   }
 
-  // 메인 페이지 (/)는 공개
+  // 메인 페이지 (/) - 로그인된 사용자는 역할에 맞는 대시보드로 리디렉트
   if (pathname === "/") {
+    if (isLoggedIn) {
+      const redirectUrl = roles.includes("ROLE_ADMIN")
+        ? "/admin/dashboard"
+        : "/staff/dashboard"
+      return NextResponse.redirect(new URL(redirectUrl, req.url))
+    }
     return NextResponse.next()
   }
 
