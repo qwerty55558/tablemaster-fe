@@ -137,13 +137,14 @@ export function useAppSecret() {
 
 /**
  * 대기 중인 디바이스 목록 조회 (TTL 3분)
+ * WebSocket으로 실시간 업데이트되므로 staleTime을 길게 설정
  */
 export function usePendingDevices() {
   return useQuery<PendingDevice[], Error>({
     queryKey: adminKeys.pendingDevices(),
     queryFn: fetchPendingDevices,
-    staleTime: 10 * 1000, // 10초 (자주 갱신)
-    refetchInterval: 30 * 1000, // 30초마다 자동 갱신
+    staleTime: 5 * 60 * 1000, // 5분 (WebSocket으로 실시간 업데이트)
+    // 자동 갱신 제거 - 새로고침 버튼으로 수동 갱신
   })
 }
 

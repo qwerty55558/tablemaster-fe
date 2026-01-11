@@ -25,8 +25,8 @@ const kakaoBigSans = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "TableMaster - 데이터 관리의 모든 것을 쉽게",
-  description: "복잡한 데이터 관리를 단순하게. TableMaster와 함께라면 당신의 업무가 새로워질 거예요.",
+  title: "TableMaster - 테이블 관리의 모든 것을 쉽게",
+  description: "복잡한 테이블 관리를 단순하게. TableMaster와 함께라면 당신의 업무가 새로워질 거예요.",
 };
 
 export default function RootLayout({
@@ -36,7 +36,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko" className={`dark ${kakaoBigSans.variable}`}>
-      <body className="antialiased">
+      <body className="antialiased select-none">
         <AuthSessionProvider>
           <QueryProvider>
             {children}

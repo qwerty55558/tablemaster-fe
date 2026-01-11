@@ -27,6 +27,8 @@ interface NotificationContextValue {
   isShaking: boolean
   connectionStatus: WebSocketConnectionStatus
   markAllAsRead: () => void
+  removeNotification: (id: number) => void
+  clearAllNotifications: () => void
 }
 
 const NotificationContext = createContext<NotificationContextValue | null>(null)
@@ -41,6 +43,8 @@ export function useNotifications(): NotificationContextValue {
       isShaking: false,
       connectionStatus: "disconnected",
       markAllAsRead: () => {},
+      removeNotification: () => {},
+      clearAllNotifications: () => {},
     }
   }
   return context
@@ -52,16 +56,33 @@ function formatTimeAgo(): string {
   return "방금 전"
 }
 
+function getDefaultMessage(type: NotificationType, data?: Record<string, unknown>): string {
+  switch (type) {
+    case NotificationType.DEVICE_REGISTER_REQUEST:
+      const deviceId = data?.deviceId as string
+      return deviceId
+        ? `새로운 디바이스 등록 요청: ${deviceId.substring(0, 8)}...`
+        : "새로운 디바이스 등록 요청이 있습니다"
+    case NotificationType.SYSTEM_ALERT:
+      return "시스템 알림"
+    default:
+      return "새로운 알림"
+  }
+}
+
 function mapNotificationToActivity(notification: AdminNotification): Activity {
   const typeMap: Record<NotificationType, Activity["type"]> = {
     [NotificationType.DEVICE_REGISTER_REQUEST]: "device",
     [NotificationType.SYSTEM_ALERT]: "warning",
   }
 
+  // 메시지가 없으면 기본 메시지 생성
+  const message = notification.message || getDefaultMessage(notification.type, notification.data)
+
   return {
     id: notificationIdCounter++,
     type: typeMap[notification.type] || "warning",
-    message: notification.message,
+    message,
     time: formatTimeAgo(),
     staff: null,
     isNew: true,
@@ -126,6 +147,14 @@ export function AdminNotificationProvider({
     )
   }, [])
 
+  const removeNotification = useCallback((id: number) => {
+    setNotifications((prev) => prev.filter((n) => n.id !== id))
+  }, [])
+
+  const clearAllNotifications = useCallback(() => {
+    setNotifications([])
+  }, [])
+
   const connect = useCallback(() => {
     if (!accessToken || clientRef.current?.connected) return
 
@@ -171,6 +200,7 @@ export function AdminNotificationProvider({
 
   const disconnect = useCallback(() => {
     if (clientRef.current) {
+      console.log("[WebSocket] Deactivating client...")
       clientRef.current.deactivate()
       clientRef.current = null
       setConnectionStatus("disconnected")
@@ -178,15 +208,16 @@ export function AdminNotificationProvider({
   }, [])
 
   useEffect(() => {
-    if (status !== "authenticated" || !isAdmin || hasError) {
+    if (status === "authenticated" && isAdmin && !hasError && accessToken) {
+      connect()
+    } else if (clientRef.current) {
       disconnect()
-      return
     }
 
-    connect()
-
     return () => {
-      disconnect()
+      if (clientRef.current) {
+        disconnect()
+      }
     }
   }, [status, isAdmin, hasError, accessToken, connect, disconnect])
 
@@ -198,6 +229,8 @@ export function AdminNotificationProvider({
         isShaking,
         connectionStatus,
         markAllAsRead,
+        removeNotification,
+        clearAllNotifications,
       }}
     >
       {children}

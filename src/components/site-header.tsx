@@ -10,6 +10,8 @@ import {
   IconUserPlus,
   IconAlertTriangle,
   IconDeviceTablet,
+  IconX,
+  IconTrash,
 } from "@tabler/icons-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -110,7 +112,7 @@ function DefaultSiteHeader() {
 function AdminSiteHeader() {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
-  const { notifications, unreadCount, isShaking, markAllAsRead } = useNotifications()
+  const { notifications, unreadCount, isShaking, markAllAsRead, removeNotification, clearAllNotifications } = useNotifications()
 
   const pageTitle = pageTitles[pathname] || "Dashboard"
 
@@ -178,7 +180,7 @@ function AdminSiteHeader() {
                       <div
                         key={activity.id}
                         className={cn(
-                          "flex items-start gap-3 rounded-lg border p-4 transition-colors",
+                          "group flex items-start gap-3 rounded-lg border p-4 transition-colors relative",
                           activity.isNew && "bg-accent/50"
                         )}
                       >
@@ -205,15 +207,31 @@ function AdminSiteHeader() {
                             )}
                           </div>
                         </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="absolute top-2 right-2 size-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => removeNotification(activity.id)}
+                        >
+                          <IconX className="size-3" />
+                        </Button>
                       </div>
                     )
                   })
                 )}
               </div>
               {notifications.length > 0 && (
-                <div className="mt-4 pt-4 border-t">
-                  <Button variant="outline" className="w-full" onClick={handleMarkAllAsRead}>
-                    모두 읽음 처리
+                <div className="mt-4 pt-4 border-t flex gap-2">
+                  <Button variant="outline" className="flex-1" onClick={handleMarkAllAsRead}>
+                    모두 읽음
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="flex-1 text-destructive hover:text-destructive"
+                    onClick={clearAllNotifications}
+                  >
+                    <IconTrash className="size-4 mr-1" />
+                    모두 삭제
                   </Button>
                 </div>
               )}
