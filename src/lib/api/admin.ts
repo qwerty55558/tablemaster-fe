@@ -71,14 +71,40 @@ async function getAuthHeaders(): Promise<HeadersInit> {
 }
 
 async function handleResponse<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    const errorData: ApiErrorResponse = await response.json().catch(() => ({
-      status: response.status,
-      message: response.statusText,
-      error: "Unknown Error",
-      timestamp: new Date().toISOString(),
-      path: "",
-    }))
+  const isOk = response.ok;
+  let text = "";
+  
+  try {
+    text = await response.text();
+  } catch (e) {
+    if (!isOk) {
+      throw new AdminApiError(
+        `요청 실패 (상태 코드: ${response.status})`,
+        response.status
+      );
+    }
+    return undefined as T;
+  }
+  
+  if (!isOk) {
+    let errorData: ApiErrorResponse;
+    try {
+      errorData = text ? JSON.parse(text) : {
+        status: response.status,
+        message: response.statusText,
+        error: "Unknown Error",
+        timestamp: new Date().toISOString(),
+        path: "",
+      };
+    } catch {
+      errorData = {
+        status: response.status,
+        message: text || response.statusText,
+        error: "Unknown Error",
+        timestamp: new Date().toISOString(),
+        path: "",
+      };
+    }
 
     throw new AdminApiError(
       errorData.message || errorData.error || "요청 처리에 실패했습니다",
@@ -86,12 +112,16 @@ async function handleResponse<T>(response: Response): Promise<T> {
     )
   }
 
-  // 204 No Content인 경우
-  if (response.status === 204) {
+  // 성공 응답 (2xx)
+  if (response.status === 204 || !text || text.trim() === "") {
     return undefined as T
   }
 
-  return await response.json()
+  try {
+    return JSON.parse(text) as T
+  } catch (e) {
+    return text as unknown as T
+  }
 }
 
 // ================================
@@ -109,7 +139,8 @@ export async function fetchDevices(): Promise<Device[]> {
     headers,
   })
 
-  return handleResponse<Device[]>(response)
+  const data = await handleResponse<Device[]>(response)
+  return data || []
 }
 
 /**

@@ -1,0 +1,72 @@
+# === 1. Next.js / Frontend ===
+node_modules/
+.next/
+out/
+.vercel/
+dist/
+.cache/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# === 2. Spring Boot / Backend ===
+target/
+build/
+.gradle/
+bin/
+out/
+*.class
+*.jar
+*.war
+*.ear
+.metadata/
+help.html
+# 환경 변수 및 설정 파일 (토큰 보안 및 절약)
+.env*
+src/main/resources/static/
+
+# === 3. Android App ===
+# 안드로이드는 빌드 폴더가 매우 무겁습니다.
+android/app/build/
+android/.gradle/
+android/local.properties
+android/generated/
+*.keystore
+*.jks
+captures/
+.externalNativeBuild/
+.cxx/
+
+# === 4. Common & IDE ===
+# IDE 설정 파일은 Claude가 읽을 필요가 전혀 없습니다.
+.vscode/
+.idea/
+*.iml
+*.swp
+*.log
+.DS_Store
+Thumbs.db
+
+# === 5. Assets & Documentation (Optional) ===
+# 이미지, 폰트 등 대용량 미디어 파일
+**/assets/images/
+**/public/images/
+**/src/main/resources/static/images/
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.pdf
+*.mp4
+
+# === 6. Lock Files (권장) ===
+# 라이브러리 버전 목록은 매우 길지만,
+# 라이브러리 자체 문제를 수정하는 게 아니라면 무시하는 게 이득입니다.
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+gradle-wrapper.jar
+gradlew
+gradlew.bat

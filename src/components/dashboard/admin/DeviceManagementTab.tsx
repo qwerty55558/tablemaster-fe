@@ -36,6 +36,7 @@ import {
   usePendingDevices,
   adminKeys,
 } from "@/hooks/use-admin"
+import { useTables } from "@/hooks/use-tables"
 import type { Device } from "@/lib/api/admin"
 import { toast } from "sonner"
 
@@ -48,6 +49,7 @@ export function DeviceManagementTab() {
   const queryClient = useQueryClient()
   const { data: devices = [], isLoading, isFetching, isError, error } = useDevices()
   const { data: pendingDevices = [] } = usePendingDevices()
+  const { data: tables = [] } = useTables()
   const deleteDevice = useDeleteDevice()
   const toggleDevice = useToggleDeviceActive()
 
@@ -148,6 +150,7 @@ export function DeviceManagementTab() {
         <CardContent>
           <DeviceTable
             devices={devices}
+            tables={tables}
             isLoading={isLoading}
             onEdit={handleEdit}
             onDelete={handleDelete}

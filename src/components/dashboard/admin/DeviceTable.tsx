@@ -29,11 +29,13 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { Device } from "@/lib/api/admin"
+import type { Table as TableData } from "@/lib/api/tables"
 import { toast } from "sonner"
 import { motionConfig } from "@/components/motion"
 
 interface DeviceTableProps {
   devices: Device[]
+  tables: TableData[]
   isLoading?: boolean
   onEdit: (device: Device) => void
   onDelete: (device: Device) => void
@@ -80,6 +82,7 @@ function TableSkeleton() {
     <>
       {[1, 2, 3].map((i) => (
         <TableRow key={i}>
+          <TableCell><Skeleton className="h-4 w-24" /></TableCell>
           <TableCell><Skeleton className="h-4 w-32" /></TableCell>
           <TableCell><Skeleton className="h-4 w-24" /></TableCell>
           <TableCell><Skeleton className="h-5 w-14" /></TableCell>
@@ -94,7 +97,7 @@ function TableSkeleton() {
 function EmptyState() {
   return (
     <TableRow>
-      <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+      <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
         등록된 디바이스가 없습니다
       </TableCell>
     </TableRow>
@@ -103,15 +106,22 @@ function EmptyState() {
 
 export function DeviceTable({
   devices,
+  tables,
   isLoading,
   onEdit,
   onDelete,
   onToggle,
 }: DeviceTableProps) {
+  // deviceId로 테이블 찾기
+  const getTableName = (deviceId: string) => {
+    const table = tables.find((t) => t.tableId === deviceId)
+    return table?.tableName || null
+  }
   return (
     <Table>
       <TableHeader>
         <TableRow>
+          <TableHead>테이블 이름</TableHead>
           <TableHead>디바이스 이름</TableHead>
           <TableHead>Device ID</TableHead>
           <TableHead>상태</TableHead>
@@ -138,6 +148,11 @@ export function DeviceTable({
               className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted"
             >
               <TableCell className="font-medium">
+                {getTableName(device.deviceId) || (
+                  <span className="text-muted-foreground">-</span>
+                )}
+              </TableCell>
+              <TableCell>
                 {device.deviceName || (
                   <span className="text-muted-foreground">-</span>
                 )}

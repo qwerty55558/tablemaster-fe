@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__swagger__list-swaggers",
+      "mcp__swagger__list-endpoints",
+      "mcp__swagger__get-endpoints",
+      "Bash(npx tsc:*)",
+      "mcp__db-server__query"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "firecrawl",
+    "db-server",
+    "swagger"
+  ]
+}

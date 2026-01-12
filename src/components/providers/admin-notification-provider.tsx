@@ -11,7 +11,7 @@ import {
 import { useSession } from "next-auth/react"
 import { useQueryClient } from "@tanstack/react-query"
 import type { Client } from "@stomp/stompjs"
-import { createStompClient, ADMIN_TOPIC, TABLES_TOPIC, TABLE_RESET_TOPIC } from "@/lib/websocket/stomp-client"
+import { createStompClient, publishToTable, ADMIN_TOPIC, TABLES_TOPIC, TABLE_RESET_TOPIC } from "@/lib/websocket/stomp-client"
 import {
   NotificationType,
   type AdminNotification,
@@ -32,6 +32,7 @@ interface NotificationContextValue {
   markAllAsRead: () => void
   removeNotification: (id: number) => void
   clearAllNotifications: () => void
+  publishTableReset: (tableId: string) => boolean
 }
 
 const NotificationContext = createContext<NotificationContextValue | null>(null)
@@ -48,6 +49,7 @@ export function useNotifications(): NotificationContextValue {
       markAllAsRead: () => {},
       removeNotification: () => {},
       clearAllNotifications: () => {},
+      publishTableReset: () => false,
     }
   }
   return context
@@ -191,6 +193,19 @@ export function AdminNotificationProvider({
 
   const clearAllNotifications = useCallback(() => {
     setNotifications([])
+  }, [])
+
+  // 테이블 리셋 메시지 발송 (개인 테이블 토픽으로)
+  const publishTableReset = useCallback((tableId: string): boolean => {
+    if (!clientRef.current?.connected) {
+      console.warn("[WebSocket] Cannot publish table reset - not connected")
+      return false
+    }
+    console.log("[WebSocket] Publishing table reset to:", tableId)
+    return publishToTable(clientRef.current, tableId, {
+      type: "TABLE_DELETED",
+      data: { tableId, timestamp: new Date().toISOString() },
+    })
   }, [])
 
   // 테이블 업데이트 처리
@@ -339,6 +354,7 @@ export function AdminNotificationProvider({
         markAllAsRead,
         removeNotification,
         clearAllNotifications,
+        publishTableReset,
       }}
     >
       {children}

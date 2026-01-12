@@ -55,6 +55,37 @@ export function subscribeToTopic(
   return client.subscribe(topic, callback)
 }
 
+/**
+ * STOMP 메시지 발송
+ */
+export function publishMessage(
+  client: Client,
+  destination: string,
+  body: object
+): boolean {
+  if (!client.connected) {
+    console.warn("[STOMP] Cannot publish - client not connected")
+    return false
+  }
+  client.publish({
+    destination,
+    body: JSON.stringify(body),
+  })
+  return true
+}
+
+/**
+ * 특정 테이블에 메시지 발송
+ */
+export function publishToTable(
+  client: Client,
+  tableId: string,
+  message: { type: string; data?: Record<string, unknown> }
+): boolean {
+  const destination = `/topic/table/${tableId}`
+  return publishMessage(client, destination, message)
+}
+
 export const ADMIN_TOPIC = "/topic/role.ADMIN"
 export const TABLES_TOPIC = "/topic/tables"
 export const TABLE_RESET_TOPIC = "/topic/table_reset"
