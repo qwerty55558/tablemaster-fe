@@ -18,6 +18,7 @@ export interface Device {
   isActive: boolean
   createdAt: string
   lastLoginAt: string | null
+  isConnected?: boolean // 프론트 전용 (WebSocket 연결 상태)
 }
 
 export interface DeviceRequest {
@@ -114,10 +115,10 @@ export async function fetchDevices(): Promise<Device[]> {
 /**
  * 디바이스 상세 조회
  */
-export async function fetchDevice(id: number): Promise<Device> {
+export async function fetchDevice(deviceId: string): Promise<Device> {
   const headers = await getAuthHeaders()
 
-  const response = await fetch(`${API_BASE_URL}/api/v1/admin/devices/${id}`, {
+  const response = await fetch(`${API_BASE_URL}/api/v1/admin/devices/${deviceId}`, {
     method: "GET",
     headers,
   })
@@ -143,10 +144,10 @@ export async function createDevice(data: DeviceRequest): Promise<Device> {
 /**
  * 디바이스 수정
  */
-export async function updateDevice(id: number, data: DeviceRequest): Promise<Device> {
+export async function updateDevice(deviceId: string, data: Omit<DeviceRequest, 'deviceId'>): Promise<Device> {
   const headers = await getAuthHeaders()
 
-  const response = await fetch(`${API_BASE_URL}/api/v1/admin/devices/${id}`, {
+  const response = await fetch(`${API_BASE_URL}/api/v1/admin/devices/${deviceId}`, {
     method: "PATCH",
     headers,
     body: JSON.stringify(data),
@@ -158,10 +159,10 @@ export async function updateDevice(id: number, data: DeviceRequest): Promise<Dev
 /**
  * 디바이스 삭제
  */
-export async function deleteDevice(id: number): Promise<void> {
+export async function deleteDevice(deviceId: string): Promise<void> {
   const headers = await getAuthHeaders()
 
-  const response = await fetch(`${API_BASE_URL}/api/v1/admin/devices/${id}`, {
+  const response = await fetch(`${API_BASE_URL}/api/v1/admin/devices/${deviceId}`, {
     method: "DELETE",
     headers,
   })
@@ -172,10 +173,10 @@ export async function deleteDevice(id: number): Promise<void> {
 /**
  * 디바이스 활성화/비활성화 토글
  */
-export async function toggleDeviceActive(id: number): Promise<Device> {
+export async function toggleDeviceActive(deviceId: string): Promise<Device> {
   const headers = await getAuthHeaders()
 
-  const response = await fetch(`${API_BASE_URL}/api/v1/admin/devices/${id}/toggle`, {
+  const response = await fetch(`${API_BASE_URL}/api/v1/admin/devices/${deviceId}/toggle`, {
     method: "PATCH",
     headers,
   })

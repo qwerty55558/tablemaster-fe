@@ -27,7 +27,7 @@ import {
 export const adminKeys = {
   all: ["admin"] as const,
   devices: () => [...adminKeys.all, "devices"] as const,
-  device: (id: number) => [...adminKeys.devices(), id] as const,
+  device: (deviceId: string) => [...adminKeys.devices(), deviceId] as const,
   pendingDevices: () => [...adminKeys.all, "pendingDevices"] as const,
   appSecret: () => [...adminKeys.all, "appSecret"] as const,
 }
@@ -50,11 +50,11 @@ export function useDevices() {
 /**
  * 디바이스 상세 조회
  */
-export function useDevice(id: number) {
+export function useDevice(deviceId: string) {
   return useQuery<Device, Error>({
-    queryKey: adminKeys.device(id),
-    queryFn: () => fetchDevice(id),
-    enabled: !!id,
+    queryKey: adminKeys.device(deviceId),
+    queryFn: () => fetchDevice(deviceId),
+    enabled: !!deviceId,
   })
 }
 
@@ -78,11 +78,11 @@ export function useCreateDevice() {
 export function useUpdateDevice() {
   const queryClient = useQueryClient()
 
-  return useMutation<Device, Error, { id: number; data: DeviceRequest }>({
-    mutationFn: ({ id, data }) => updateDevice(id, data),
+  return useMutation<Device, Error, { deviceId: string; data: { deviceName?: string } }>({
+    mutationFn: ({ deviceId, data }) => updateDevice(deviceId, data),
     onSuccess: (updatedDevice) => {
       queryClient.invalidateQueries({ queryKey: adminKeys.devices() })
-      queryClient.setQueryData(adminKeys.device(updatedDevice.id), updatedDevice)
+      queryClient.setQueryData(adminKeys.device(updatedDevice.deviceId), updatedDevice)
     },
   })
 }
@@ -93,7 +93,7 @@ export function useUpdateDevice() {
 export function useDeleteDevice() {
   const queryClient = useQueryClient()
 
-  return useMutation<void, Error, number>({
+  return useMutation<void, Error, string>({
     mutationFn: deleteDevice,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: adminKeys.devices() })
@@ -107,11 +107,11 @@ export function useDeleteDevice() {
 export function useToggleDeviceActive() {
   const queryClient = useQueryClient()
 
-  return useMutation<Device, Error, number>({
+  return useMutation<Device, Error, string>({
     mutationFn: toggleDeviceActive,
     onSuccess: (updatedDevice) => {
       queryClient.invalidateQueries({ queryKey: adminKeys.devices() })
-      queryClient.setQueryData(adminKeys.device(updatedDevice.id), updatedDevice)
+      queryClient.setQueryData(adminKeys.device(updatedDevice.deviceId), updatedDevice)
     },
   })
 }

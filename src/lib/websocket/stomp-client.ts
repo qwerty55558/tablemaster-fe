@@ -56,3 +56,5 @@ export function subscribeToTopic(
 }
 
 export const ADMIN_TOPIC = "/topic/role.ADMIN"
+export const TABLES_TOPIC = "/topic/tables"
+export const TABLE_RESET_TOPIC = "/topic/table_reset"

@@ -1,7 +1,7 @@
 "use client"
 
-import { motion, Variants } from "framer-motion"
-import { ReactNode } from "react"
+import { motion, Variants, useReducedMotion } from "framer-motion"
+import { ReactNode, useState, useEffect } from "react"
 import { motionConfig } from "./config"
 
 interface StaggerContainerProps {
@@ -69,12 +69,18 @@ const itemVariants: Record<string, Variants> = {
  * Container for staggered animations - children will animate in sequence
  * Use with StaggerItem for each child element
  */
-export function StaggerContainer({ 
-  children, 
+export function StaggerContainer({
+  children,
   className,
   staggerDelay = motionConfig.stagger.normal,
   delayChildren = 0,
 }: StaggerContainerProps) {
+  const [isMounted, setIsMounted] = useState(false)
+
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
+
   return (
     <motion.div
       variants={{
@@ -87,7 +93,7 @@ export function StaggerContainer({
           },
         },
       }}
-      initial="hidden"
+      initial={isMounted ? "hidden" : false}
       animate="visible"
       className={className}
     >
@@ -100,11 +106,22 @@ export function StaggerContainer({
  * Individual item within a StaggerContainer
  * Automatically inherits animation timing from parent
  */
-export function StaggerItem({ 
-  children, 
+export function StaggerItem({
+  children,
   className,
   variant = "fadeInUp",
 }: StaggerItemProps) {
+  const [isMounted, setIsMounted] = useState(false)
+
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
+
+  // SSR에서는 애니메이션 없이 바로 보여줌
+  if (!isMounted) {
+    return <div className={className}>{children}</div>
+  }
+
   return (
     <motion.div
       variants={itemVariants[variant]}

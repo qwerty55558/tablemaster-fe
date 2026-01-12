@@ -510,6 +510,11 @@ function SidebarMenuButton({
 } & VariantProps<typeof sidebarMenuButtonVariants>) {
   const Comp = asChild ? Slot : "button"
   const { isMobile, state } = useSidebar()
+  const [isMounted, setIsMounted] = React.useState(false)
+
+  React.useEffect(() => {
+    setIsMounted(true)
+  }, [])
 
   const button = (
     <Comp
@@ -522,7 +527,8 @@ function SidebarMenuButton({
     />
   )
 
-  if (!tooltip) {
+  // tooltip 없거나 아직 마운트 안 됐으면 버튼만 반환 (hydration 문제 방지)
+  if (!tooltip || !isMounted) {
     return button
   }
 

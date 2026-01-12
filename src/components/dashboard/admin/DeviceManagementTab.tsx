@@ -62,9 +62,9 @@ export function DeviceManagementTab() {
 
   const confirmDelete = async () => {
     if (!deleteTarget) return
-    
+
     try {
-      await deleteDevice.mutateAsync(deleteTarget.id)
+      await deleteDevice.mutateAsync(deleteTarget.deviceId)
       toast.success("디바이스가 삭제되었습니다")
     } catch (error) {
       const message = error instanceof Error ? error.message : "삭제에 실패했습니다"
@@ -76,7 +76,7 @@ export function DeviceManagementTab() {
 
   const handleToggle = async (device: Device) => {
     try {
-      await toggleDevice.mutateAsync(device.id)
+      await toggleDevice.mutateAsync(device.deviceId)
       toast.success(
         device.isActive
           ? "디바이스가 비활성화되었습니다"

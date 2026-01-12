@@ -64,7 +64,11 @@ function DeviceItem({ device, index, onApprove, isPending }: DeviceItemProps) {
   }, [remainingTTL])
 
   const handleApprove = () => {
-    onApprove(device.deviceId, deviceName.trim() || undefined)
+    if (!deviceName.trim()) {
+      toast.error("테이블 이름을 입력해주세요")
+      return
+    }
+    onApprove(device.deviceId, deviceName.trim())
   }
 
   const isExpiringSoon = remainingTTL <= 30

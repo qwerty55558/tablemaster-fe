@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useCreateDevice, useUpdateDevice } from "@/hooks/use-admin"
-import type { Device, DeviceRequest } from "@/lib/api/admin"
+import type { Device } from "@/lib/api/admin"
 import { toast } from "sonner"
 
 interface DeviceFormDialogProps {
@@ -60,17 +60,18 @@ export function DeviceFormDialog({
   }, [device, open, reset])
 
   const onSubmit = async (data: FormData) => {
-    const request: DeviceRequest = {
-      deviceId: data.deviceId,
-      deviceName: data.deviceName || undefined,
-    }
-
     try {
       if (isEdit && device) {
-        await updateDevice.mutateAsync({ id: device.id, data: request })
+        await updateDevice.mutateAsync({
+          deviceId: device.deviceId,
+          data: { deviceName: data.deviceName || undefined },
+        })
         toast.success("디바이스가 수정되었습니다")
       } else {
-        await createDevice.mutateAsync(request)
+        await createDevice.mutateAsync({
+          deviceId: data.deviceId,
+          deviceName: data.deviceName || undefined,
+        })
         toast.success("디바이스가 등록되었습니다")
       }
       onOpenChange(false)
