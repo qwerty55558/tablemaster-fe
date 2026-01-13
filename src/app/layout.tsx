@@ -5,6 +5,7 @@ import localFont from "next/font/local";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthSessionProvider } from "@/components/providers/session-provider";
 import { QueryProvider } from "@/components/providers/query-provider";
+import { AdminNotificationProvider } from "@/components/providers/admin-notification-provider";
 import { SessionExpiredHandler } from "@/components/session-expired-handler";
 
 const kakaoBigSans = localFont({
@@ -39,8 +40,10 @@ export default function RootLayout({
       <body className="antialiased select-none">
         <AuthSessionProvider>
           <QueryProvider>
-            {children}
-            <SessionExpiredHandler />
+            <AdminNotificationProvider>
+              {children}
+              <SessionExpiredHandler />
+            </AdminNotificationProvider>
           </QueryProvider>
         </AuthSessionProvider>
         <Toaster />

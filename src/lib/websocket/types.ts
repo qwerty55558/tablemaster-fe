@@ -9,9 +9,6 @@ export enum NotificationType {
   DEVICE_DISCONNECTED = "DEVICE_DISCONNECTED",
   DEVICE_DELETED = "DEVICE_DELETED",
   SYSTEM_ALERT = "SYSTEM_ALERT",
-  // 테이블 관련
-  TABLE_UPDATED = "TABLE_UPDATED",
-  TABLE_RESET = "TABLE_RESET",
 }
 
 export interface AdminNotification {
@@ -25,29 +22,42 @@ export interface AdminNotification {
   ttl?: number
 }
 
-// 테이블 업데이트 메시지 타입
-export interface TableUpdateMessage {
-  type: "TABLE_UPDATED" | "TABLE_RESET"
-  tableId: string
-  table?: {
-    tableId: string
-    tableName: string
-    status: "active" | "empty" | "reserved"
-    guestCount: number
-    maleCount: number
-    femaleCount: number
-    location: string
-    chatEnabled: boolean
-    entryTime?: string
-  }
-  timestamp?: string
-}
-
 export type WebSocketConnectionStatus =
   | "connecting"
   | "connected"
   | "disconnected"
   | "error"
+
+// ================================
+// 테이블 WebSocket 메시지 타입
+// ================================
+
+export enum TableMessageType {
+  TABLE_ADDED = "TABLE_ADDED",
+  TABLE_REMOVED = "TABLE_REMOVED",
+  TABLE_UPDATED = "TABLE_UPDATED",
+}
+
+// 백엔드에서 오는 테이블 데이터 형태
+export interface TableData {
+  id: string
+  name: string
+  status: "OCCUPIED" | "EMPTY" | "RESERVED"
+  guestCount: number
+  maleCount?: number
+  femaleCount?: number
+  location: string
+  isChatting: boolean
+  updatedAt?: string
+}
+
+// WebSocket 테이블 메시지 (delta only)
+export interface TableMessage {
+  type: TableMessageType
+  data?: TableData          // TABLE_ADDED, TABLE_UPDATED용
+  id?: string               // TABLE_REMOVED용
+  timestamp?: string
+}
 
 // 알림 패널용 Activity 타입
 export type ActivityType = "entry" | "exit" | "chat" | "warning" | "gift" | "device"

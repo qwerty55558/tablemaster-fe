@@ -219,13 +219,14 @@ export async function setupTable(data: SetupTableRequest): Promise<Table> {
 }
 
 /**
- * 테이블 초기화 (관리자/스태프용)
+ * 테이블 삭제 (관리자/스태프용)
+ * 백엔드에서 TABLE_REMOVED delta 발행
  */
-export async function resetTable(tableId: string): Promise<void> {
+export async function deleteTable(tableId: string): Promise<void> {
   const headers = await getAuthHeaders()
 
-  const response = await fetch(`${API_BASE_URL}/api/v1/tables/${tableId}/reset`, {
-    method: "POST",
+  const response = await fetch(`${API_BASE_URL}/api/v1/tables/${tableId}`, {
+    method: "DELETE",
     headers,
   })
 

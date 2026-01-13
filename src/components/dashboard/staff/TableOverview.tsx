@@ -31,13 +31,13 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
-import { useTables, tableKeys, useResetTable } from "@/hooks/use-tables"
+import { useTables, useDeleteTable, tableKeys } from "@/hooks/use-tables"
+import { fetchTables } from "@/lib/api/tables"
 import { useDevices, adminKeys } from "@/hooks/use-admin"
 import { useQueryClient } from "@tanstack/react-query"
 import type { Table } from "@/lib/api/tables"
 import type { Device } from "@/lib/api/admin"
 import { toast } from "sonner"
-import { useNotifications } from "@/components/providers/admin-notification-provider"
 
 // 디바이스 + 테이블 상태 결합 타입
 interface DeviceTableInfo {
@@ -102,16 +102,16 @@ interface TableDetailDialogProps {
   deviceTable: DeviceTableInfo | null
   open: boolean
   onOpenChange: (open: boolean) => void
-  onReset: (deviceId: string) => void
-  isResetting: boolean
+  onDelete: (tableId: string) => void
+  isDeleting: boolean
 }
 
 function TableDetailDialog({
   deviceTable,
   open,
   onOpenChange,
-  onReset,
-  isResetting,
+  onDelete,
+  isDeleting,
 }: TableDetailDialogProps) {
   if (!deviceTable) return null
 
@@ -237,10 +237,10 @@ function TableDetailDialog({
             {deviceTable.status === "active" && (
               <Button
                 variant="destructive"
-                onClick={() => onReset(deviceTable.deviceId)}
-                disabled={isResetting}
+                onClick={() => onDelete(deviceTable.table?.tableId || deviceTable.deviceId)}
+                disabled={isDeleting}
               >
-                {isResetting ? "초기화 중..." : "테이블 초기화"}
+                {isDeleting ? "삭제 중..." : "테이블 삭제"}
               </Button>
             )}
           </div>
@@ -251,14 +251,13 @@ function TableDetailDialog({
 }
 
 export function TableOverview() {
-  const [selectedDeviceTable, setSelectedDeviceTable] = React.useState<DeviceTableInfo | null>(null)
+  const [selectedDeviceId, setSelectedDeviceId] = React.useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = React.useState(false)
 
   const queryClient = useQueryClient()
-  const { publishTableReset } = useNotifications()
   const { data: devices = [], isLoading: devicesLoading, isFetching: devicesFetching, isError: devicesError, error: devicesErrorData } = useDevices()
-  const { data: tables = [], isLoading: tablesLoading, isFetching: tablesFetching, isError: tablesError, error: tablesErrorData } = useTables()
-  const resetTable = useResetTable()
+  const { data: tables = [] } = useTables() // WebSocket에서 실시간 업데이트
+  const deleteTable = useDeleteTable()
 
   // 디바이스 목록 기준으로 테이블 상태 매핑
   const deviceTableList = React.useMemo<DeviceTableInfo[]>(() => {
@@ -284,32 +283,50 @@ export function TableOverview() {
     })
   }, [devices, tables])
 
-  const isLoading = devicesLoading || tablesLoading
-  const isFetching = devicesFetching || tablesFetching
-  const isError = devicesError || tablesError
-  const error = devicesErrorData || tablesErrorData
+  // 선택된 디바이스 정보 (캐시에서 실시간으로 가져옴)
+  const selectedDeviceTable = React.useMemo(() => {
+    if (!selectedDeviceId) return null
+    return deviceTableList.find((dt) => dt.deviceId === selectedDeviceId) || null
+  }, [selectedDeviceId, deviceTableList])
+
+  const [isRefreshing, setIsRefreshing] = React.useState(false)
+
+  const isLoading = devicesLoading
+  const isFetching = devicesFetching || isRefreshing
+  const isError = devicesError
+  const error = devicesErrorData
 
   const handleDeviceTableClick = (deviceTable: DeviceTableInfo) => {
-    setSelectedDeviceTable(deviceTable)
+    setSelectedDeviceId(deviceTable.deviceId)
     setDialogOpen(true)
   }
 
-  const handleReset = async (deviceId: string) => {
+  const handleDelete = async (tableId: string) => {
     try {
-      await resetTable.mutateAsync(deviceId)
-      // STOMP로 해당 테이블에 삭제 메시지 발송
-      publishTableReset(deviceId)
-      toast.success("테이블이 초기화되었습니다")
+      await deleteTable.mutateAsync(tableId)
+      toast.success("테이블이 삭제되었습니다")
       setDialogOpen(false)
     } catch (err) {
-      const message = err instanceof Error ? err.message : "초기화에 실패했습니다"
+      const message = err instanceof Error ? err.message : "삭제에 실패했습니다"
       toast.error(message)
     }
   }
 
-  const handleRefresh = () => {
-    queryClient.invalidateQueries({ queryKey: adminKeys.devices() })
-    queryClient.invalidateQueries({ queryKey: tableKeys.list() })
+  const handleRefresh = async () => {
+    setIsRefreshing(true)
+    try {
+      // 디바이스 + 테이블 API 호출 후 캐시 직접 업데이트
+      const [_, tablesData] = await Promise.all([
+        queryClient.invalidateQueries({ queryKey: adminKeys.devices() }),
+        fetchTables(),
+      ])
+      // 테이블 데이터를 캐시에 스냅샷처럼 설정
+      queryClient.setQueryData(tableKeys.list(), tablesData)
+    } catch (err) {
+      toast.error("새로고침에 실패했습니다")
+    } finally {
+      setIsRefreshing(false)
+    }
   }
 
   if (isError) {
@@ -436,8 +453,8 @@ export function TableOverview() {
         deviceTable={selectedDeviceTable}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        onReset={handleReset}
-        isResetting={resetTable.isPending}
+        onDelete={handleDelete}
+        isDeleting={deleteTable.isPending}
       />
     </>
   )

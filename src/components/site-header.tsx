@@ -79,39 +79,6 @@ const typeConfig: Record<ActivityType, { icon: typeof IconBell; color: string; b
 export function SiteHeader() {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
-
-  // Context에서 알림 상태 가져오기 (Admin 페이지에서만)
-  const isAdminPage = pathname.startsWith("/admin")
-
-  return isAdminPage ? <AdminSiteHeader /> : <DefaultSiteHeader />
-}
-
-function DefaultSiteHeader() {
-  const pathname = usePathname()
-  const pageTitle = pageTitles[pathname] || "Dashboard"
-
-  return (
-    <header className="flex h-(--header-height) shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)">
-      <div className="flex w-full items-center gap-1 px-4 lg:gap-2 lg:px-6">
-        <SidebarTrigger className="-ml-1" />
-        <Separator
-          orientation="vertical"
-          className="mx-2 data-[orientation=vertical]:h-4"
-        />
-        <h1 className="text-base font-medium">{pageTitle}</h1>
-        <div className="ml-auto flex items-center gap-2">
-          <Button variant="ghost" size="icon" className="relative">
-            <IconBell className="size-5" />
-          </Button>
-        </div>
-      </div>
-    </header>
-  )
-}
-
-function AdminSiteHeader() {
-  const pathname = usePathname()
-  const [open, setOpen] = useState(false)
   const { notifications, unreadCount, isShaking, markAllAsRead, removeNotification, clearAllNotifications } = useNotifications()
 
   const pageTitle = pageTitles[pathname] || "Dashboard"
@@ -122,7 +89,7 @@ function AdminSiteHeader() {
   }
 
   return (
-    <header className="flex h-(--header-height) shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)">
+    <header className="sticky top-0 z-50 bg-background flex h-(--header-height) shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)">
       <div className="flex w-full items-center gap-1 px-4 lg:gap-2 lg:px-6">
         <SidebarTrigger className="-ml-1" />
         <Separator
@@ -242,3 +209,4 @@ function AdminSiteHeader() {
     </header>
   )
 }
+

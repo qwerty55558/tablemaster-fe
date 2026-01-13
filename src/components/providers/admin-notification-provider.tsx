@@ -11,13 +11,15 @@ import {
 import { useSession } from "next-auth/react"
 import { useQueryClient } from "@tanstack/react-query"
 import type { Client } from "@stomp/stompjs"
-import { createStompClient, publishToTable, ADMIN_TOPIC, TABLES_TOPIC, TABLE_RESET_TOPIC } from "@/lib/websocket/stomp-client"
+import { createStompClient, publishToTable, ADMIN_TOPIC, TABLES_TOPIC } from "@/lib/websocket/stomp-client"
 import {
   NotificationType,
   type AdminNotification,
   type Activity,
   type WebSocketConnectionStatus,
-  type TableUpdateMessage,
+  TableMessageType,
+  type TableMessage,
+  type TableData,
 } from "@/lib/websocket/types"
 import { adminKeys } from "@/hooks/use-admin"
 import { tableKeys } from "@/hooks/use-tables"
@@ -79,6 +81,26 @@ function getDefaultMessage(type: string, data?: Record<string, unknown>): string
       return "시스템 알림"
     default:
       return "새로운 알림"
+  }
+}
+
+// 백엔드 TableData → 프론트 Table 타입 변환
+function mapTableDataToTable(data: TableData): Table {
+  const statusMap: Record<string, Table["status"]> = {
+    OCCUPIED: "active",
+    EMPTY: "empty",
+    RESERVED: "reserved",
+  }
+  return {
+    tableId: data.id,
+    tableName: data.name,
+    status: statusMap[data.status] || "empty",
+    guestCount: data.guestCount,
+    maleCount: data.maleCount ?? 0,
+    femaleCount: data.femaleCount ?? 0,
+    location: data.location,
+    chatEnabled: data.isChatting,
+    entryTime: data.updatedAt,
   }
 }
 
@@ -195,6 +217,47 @@ export function AdminNotificationProvider({
     setNotifications([])
   }, [])
 
+  // 테이블 WebSocket 메시지 처리 (delta only)
+  const handleTableMessage = useCallback(
+    (message: TableMessage) => {
+      console.log("[WebSocket] Table delta received:", message)
+
+      switch (message.type) {
+        case TableMessageType.TABLE_ADDED:
+          if (message.data) {
+            const newTable = mapTableDataToTable(message.data)
+            queryClient.setQueryData<Table[]>(tableKeys.list(), (old) =>
+              old ? [...old, newTable] : [newTable]
+            )
+            console.log("[WebSocket] Table added:", newTable.tableId)
+          }
+          break
+
+        case TableMessageType.TABLE_REMOVED:
+          if (message.id) {
+            queryClient.setQueryData<Table[]>(tableKeys.list(), (old) =>
+              old?.filter((t) => t.tableId !== message.id)
+            )
+            console.log("[WebSocket] Table removed:", message.id)
+          }
+          break
+
+        case TableMessageType.TABLE_UPDATED:
+          if (message.data) {
+            const updatedTable = mapTableDataToTable(message.data)
+            queryClient.setQueryData<Table[]>(tableKeys.list(), (old) =>
+              old?.map((t) =>
+                t.tableId === updatedTable.tableId ? updatedTable : t
+              )
+            )
+            console.log("[WebSocket] Table updated:", updatedTable.tableId)
+          }
+          break
+      }
+    },
+    [queryClient]
+  )
+
   // 테이블 리셋 메시지 발송 (개인 테이블 토픽으로)
   const publishTableReset = useCallback((tableId: string): boolean => {
     if (!clientRef.current?.connected) {
@@ -207,31 +270,6 @@ export function AdminNotificationProvider({
       data: { tableId, timestamp: new Date().toISOString() },
     })
   }, [])
-
-  // 테이블 업데이트 처리
-  const handleTableUpdate = useCallback(
-    (message: TableUpdateMessage) => {
-      console.log("[WebSocket] Table update received:", message)
-
-      if (message.type === "TABLE_UPDATED" && message.table) {
-        // 특정 테이블 업데이트
-        queryClient.setQueryData<Table[]>(tableKeys.list(), (old) =>
-          old?.map((t) =>
-            t.tableId === message.table!.tableId ? message.table! : t
-          )
-        )
-        // 상세 캐시도 업데이트
-        queryClient.setQueryData(tableKeys.detail(message.table.tableId), message.table)
-      } else if (message.type === "TABLE_RESET") {
-        // 테이블 리셋 - 목록 무효화
-        queryClient.invalidateQueries({ queryKey: tableKeys.list() })
-        if (message.tableId) {
-          queryClient.invalidateQueries({ queryKey: tableKeys.detail(message.tableId) })
-        }
-      }
-    },
-    [queryClient]
-  )
 
   const connect = useCallback(() => {
     if (!accessToken) return
@@ -268,27 +306,15 @@ export function AdminNotificationProvider({
           })
         }
 
-        // 테이블 업데이트 토픽 (Admin/Staff 공용)
+        // 테이블 토픽 (Admin/Staff 공용)
         console.log("[WebSocket] Subscribing to:", TABLES_TOPIC)
         client.subscribe(TABLES_TOPIC, (message) => {
-          console.log("[WebSocket] Table update received:", message.body)
+          console.log("[WebSocket] Table message received:", message.body)
           try {
-            const tableMessage = JSON.parse(message.body) as TableUpdateMessage
-            handleTableUpdate(tableMessage)
+            const tableMessage = JSON.parse(message.body) as TableMessage
+            handleTableMessage(tableMessage)
           } catch (e) {
             console.error("[WebSocket] Failed to parse table message:", message.body, e)
-          }
-        })
-
-        // 테이블 리셋 토픽
-        console.log("[WebSocket] Subscribing to:", TABLE_RESET_TOPIC)
-        client.subscribe(TABLE_RESET_TOPIC, (message) => {
-          console.log("[WebSocket] Table reset received:", message.body)
-          try {
-            const resetMessage = JSON.parse(message.body) as TableUpdateMessage
-            handleTableUpdate(resetMessage)
-          } catch (e) {
-            console.error("[WebSocket] Failed to parse table reset message:", message.body, e)
           }
         })
       },
@@ -306,7 +332,7 @@ export function AdminNotificationProvider({
     setConnectionStatus("connecting")
     console.log("[WebSocket] Activating client...")
     client.activate()
-  }, [accessToken, isAdmin, addNotification, handleTableUpdate])
+  }, [accessToken, isAdmin, addNotification, handleTableMessage])
 
   const disconnect = useCallback(() => {
     if (clientRef.current) {
