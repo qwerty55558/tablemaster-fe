@@ -19,7 +19,7 @@ const EXCLUDED_PATHS = [
 ]
 
 export default auth((req) => {
-  const { pathname } = req.nextUrl
+  const { pathname, origin } = req.nextUrl
   const isLoggedIn = !!req.auth
   const roles = req.auth?.user?.roles || []
 
@@ -35,7 +35,7 @@ export default auth((req) => {
       const redirectUrl = roles.includes("ROLE_ADMIN")
         ? "/admin/dashboard"
         : "/staff/dashboard"
-      return NextResponse.redirect(new URL(redirectUrl, req.url))
+      return NextResponse.redirect(new URL(redirectUrl, origin))
     }
     return NextResponse.next()
   }
@@ -46,14 +46,14 @@ export default auth((req) => {
       const redirectUrl = roles.includes("ROLE_ADMIN")
         ? "/admin/dashboard"
         : "/staff/dashboard"
-      return NextResponse.redirect(new URL(redirectUrl, req.url))
+      return NextResponse.redirect(new URL(redirectUrl, origin))
     }
     return NextResponse.next()
   }
 
   // 미인증 사용자 → 로그인 페이지로 리디렉트
   if (!isLoggedIn) {
-    const loginUrl = new URL("/login", req.url)
+    const loginUrl = new URL("/login", origin)
     loginUrl.searchParams.set("callbackUrl", pathname)
     return NextResponse.redirect(loginUrl)
   }
@@ -63,7 +63,7 @@ export default auth((req) => {
   if (pathname.startsWith("/admin")) {
     if (!roles.includes("ROLE_ADMIN")) {
       // 권한 없으면 staff 대시보드로 리디렉트
-      return NextResponse.redirect(new URL("/staff/dashboard", req.url))
+      return NextResponse.redirect(new URL("/staff/dashboard", origin))
     }
   }
 
@@ -71,12 +71,13 @@ export default auth((req) => {
   if (pathname.startsWith("/staff")) {
     if (!roles.includes("ROLE_STAFF") && !roles.includes("ROLE_ADMIN")) {
       // 권한 없으면 로그인 페이지로 리디렉트
-      return NextResponse.redirect(new URL("/login", req.url))
+      return NextResponse.redirect(new URL("/login", origin))
     }
   }
 
   return NextResponse.next()
 })
+
 
 export const config = {
   matcher: [
