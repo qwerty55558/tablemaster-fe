@@ -45,3 +45,15 @@ next-env.d.ts
 opencode.json
 swagger-config.json
 .mcp.json
+
+# deployment
+Dockerfile
+nginx.conf
+.dockerignore
+.env.production
+
+# local tool settings
+.claude/settings.local.json
+
+# temp files
+tmpclaude-*

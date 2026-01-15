@@ -1,6 +1,8 @@
 import { fetchValidationConfig } from "@/lib/validation/config"
 import { SignupForm } from "@/components/signup-form"
 
+export const dynamic = "force-dynamic"
+
 // 빌드 타임에 config fetch → SSG
 export default async function SignupPage() {
   const validationConfig = await fetchValidationConfig()

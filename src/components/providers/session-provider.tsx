@@ -12,5 +12,12 @@ interface AuthSessionProviderProps {
 }
 
 export function AuthSessionProvider({ children }: AuthSessionProviderProps) {
-  return <SessionProvider>{children}</SessionProvider>
+  return (
+    <SessionProvider
+      refetchInterval={0} // 자동 polling 비활성화
+      refetchOnWindowFocus={false} // 창 포커스 시 refetch 비활성화
+    >
+      {children}
+    </SessionProvider>
+  )
 }

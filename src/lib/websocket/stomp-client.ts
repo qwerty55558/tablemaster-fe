@@ -1,6 +1,7 @@
 import { Client, type IMessage, type StompSubscription } from "@stomp/stompjs"
+import SockJS from "sockjs-client"
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://127.0.0.1:8080/ws"
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "http://127.0.0.1:8080/ws"
 
 export interface StompClientOptions {
   token: string
@@ -14,7 +15,7 @@ export function createStompClient(options: StompClientOptions): Client {
   const { token, onConnect, onDisconnect, onError, debug = false } = options
 
   const client = new Client({
-    brokerURL: WS_URL,
+    webSocketFactory: () => new SockJS(WS_URL),
     connectHeaders: {
       Authorization: `Bearer ${token}`,
     },
