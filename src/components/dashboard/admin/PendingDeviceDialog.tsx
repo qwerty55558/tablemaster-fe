@@ -53,6 +53,12 @@ function DeviceItem({ device, index, onApprove, isPending }: DeviceItemProps) {
   const [deviceName, setDeviceName] = React.useState("")
   const [remainingTTL, setRemainingTTL] = React.useState(device.ttl)
 
+  // 서버에서 새로 받아온 ttl로 동기화
+  React.useEffect(() => {
+    setRemainingTTL(device.ttl)
+  }, [device.ttl])
+
+  // 1초마다 카운트다운
   React.useEffect(() => {
     if (remainingTTL <= 0) return
 
@@ -142,6 +148,13 @@ export function PendingDeviceDialog({
   const queryClient = useQueryClient()
   const { data: pendingDevices = [], isLoading, isFetching } = usePendingDevices()
   const approveDevice = useApproveDevice()
+
+  // 모달 열릴 때 최신 데이터 fetch
+  React.useEffect(() => {
+    if (open) {
+      queryClient.invalidateQueries({ queryKey: adminKeys.pendingDevices() })
+    }
+  }, [open, queryClient])
 
   const handleApprove = async (deviceId: string, deviceName?: string) => {
     try {

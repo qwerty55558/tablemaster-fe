@@ -3,7 +3,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import {
   fetchDevices,
-  fetchDevice,
   createDevice,
   updateDevice,
   deleteDevice,
@@ -11,12 +10,10 @@ import {
   fetchAppSecret,
   fetchPendingDevices,
   approveDevice,
-  requestDeviceRegister,
   type Device,
   type DeviceRequest,
   type AppSecretResponse,
   type PendingDevice,
-  type DeviceRegisterRequest,
   type ApproveDeviceRequest,
 } from "@/lib/api/admin"
 
@@ -27,7 +24,6 @@ import {
 export const adminKeys = {
   all: ["admin"] as const,
   devices: () => [...adminKeys.all, "devices"] as const,
-  device: (deviceId: string) => [...adminKeys.devices(), deviceId] as const,
   pendingDevices: () => [...adminKeys.all, "pendingDevices"] as const,
   appSecret: () => [...adminKeys.all, "appSecret"] as const,
 }
@@ -44,17 +40,6 @@ export function useDevices() {
     queryKey: adminKeys.devices(),
     queryFn: fetchDevices,
     staleTime: 30 * 1000, // 30초
-  })
-}
-
-/**
- * 디바이스 상세 조회
- */
-export function useDevice(deviceId: string) {
-  return useQuery<Device, Error>({
-    queryKey: adminKeys.device(deviceId),
-    queryFn: () => fetchDevice(deviceId),
-    enabled: !!deviceId,
   })
 }
 
@@ -80,9 +65,8 @@ export function useUpdateDevice() {
 
   return useMutation<Device, Error, { deviceId: string; data: { deviceName?: string } }>({
     mutationFn: ({ deviceId, data }) => updateDevice(deviceId, data),
-    onSuccess: (updatedDevice) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: adminKeys.devices() })
-      queryClient.setQueryData(adminKeys.device(updatedDevice.deviceId), updatedDevice)
     },
   })
 }
@@ -109,9 +93,8 @@ export function useToggleDeviceActive() {
 
   return useMutation<Device, Error, string>({
     mutationFn: toggleDeviceActive,
-    onSuccess: (updatedDevice) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: adminKeys.devices() })
-      queryClient.setQueryData(adminKeys.device(updatedDevice.deviceId), updatedDevice)
     },
   })
 }
@@ -137,14 +120,13 @@ export function useAppSecret() {
 
 /**
  * 대기 중인 디바이스 목록 조회 (TTL 3분)
- * WebSocket으로 실시간 업데이트되므로 staleTime을 길게 설정
+ * 모달 열 때마다 최신 데이터 필요
  */
 export function usePendingDevices() {
   return useQuery<PendingDevice[], Error>({
     queryKey: adminKeys.pendingDevices(),
     queryFn: fetchPendingDevices,
-    staleTime: 5 * 60 * 1000, // 5분 (WebSocket으로 실시간 업데이트)
-    // 자동 갱신 제거 - 새로고침 버튼으로 수동 갱신
+    staleTime: 0, // 항상 fresh 데이터 fetch
   })
 }
 
@@ -159,20 +141,6 @@ export function useApproveDevice() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: adminKeys.pendingDevices() })
       queryClient.invalidateQueries({ queryKey: adminKeys.devices() })
-    },
-  })
-}
-
-/**
- * 디바이스 등록 요청 (인증 없이)
- */
-export function useRequestDeviceRegister() {
-  const queryClient = useQueryClient()
-
-  return useMutation<void, Error, DeviceRegisterRequest>({
-    mutationFn: requestDeviceRegister,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: adminKeys.pendingDevices() })
     },
   })
 }

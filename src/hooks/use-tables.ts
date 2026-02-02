@@ -4,10 +4,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useMemo } from "react"
 import {
   fetchTables,
-  setupTable,
   deleteTable,
   type Table,
-  type SetupTableRequest,
 } from "@/lib/api/tables"
 
 // ================================
@@ -56,26 +54,6 @@ export function useTable(tableId: string | null) {
     error,
     isError: !!error,
   }
-}
-
-/**
- * 테이블 설정 (입장 시)
- * 성공 시 목록 캐시 직접 업데이트 (WebSocket delta도 올 수 있음)
- */
-export function useSetupTable() {
-  const queryClient = useQueryClient()
-
-  return useMutation<Table, Error, SetupTableRequest>({
-    mutationFn: setupTable,
-    onSuccess: (updatedTable) => {
-      // 목록 캐시에서 해당 테이블 업데이트
-      queryClient.setQueryData<Table[]>(tableKeys.list(), (old) =>
-        old?.map((t) =>
-          t.tableId === updatedTable.tableId ? updatedTable : t
-        )
-      )
-    },
-  })
 }
 
 /**

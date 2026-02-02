@@ -50,7 +50,6 @@ swagger-config.json
 Dockerfile
 nginx.conf
 .dockerignore
-.env.production
 
 # local tool settings
 .claude/settings.local.json
