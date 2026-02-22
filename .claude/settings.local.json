@@ -5,7 +5,11 @@
       "mcp__swagger__list-endpoints",
       "mcp__swagger__get-endpoints",
       "Bash(npx tsc:*)",
-      "mcp__db-server__query"
+      "mcp__db-server__query",
+      "Bash(docker buildx build:*)",
+      "Bash(git add:*)",
+      "Bash(git reset HEAD)",
+      "Bash(git pull:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

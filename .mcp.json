@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "crawl4ai": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "mcp-crawl4ai-ts"],
+      "env": {
+        "CRAWL4AI_BASE_URL": "http://127.0.0.1:11235"
+      }
+    },
+    "db-server": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "@modelcontextprotocol/server-postgres", "postgresql://postgres:postgres@localhost:5432/postgres"]
+    },
+    "swagger": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "swagger-mcp-server", "./swagger-config.json"]
+    }
+  }
+}

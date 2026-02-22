@@ -1,0 +1,44 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "agent": {
+    "build": {
+      "prompt": "Follow the global rules in AGENTS.md."
+    }
+  },
+  "tui": {
+    "scroll_speed": 1.0,
+    "scroll_acceleration": {
+      "enabled": true
+    }
+  },
+  "mcp": {
+    "crawl4ai": {
+      "type": "local",
+      "enabled": true,
+      "command": ["cmd","/c", "npx", "-y", "mcp-crawl4ai-ts"],
+      "environment": {
+        "CRAWL4AI_BASE_URL": "http://127.0.0.1:11235"
+      }
+    },
+    "db-server_dev": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y", "@modelcontextprotocol/server-postgres", "postgresql://postgres:postgres@localhost:5432/postgres"
+      ],
+      "enabled": true,
+      "timeout": 10000
+    },
+    "swagger_dev": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "swagger-mcp-server",
+        "./swagger-config.json"
+      ],
+      "enabled": true,
+      "timeout": 30000
+    }
+  }
+}
