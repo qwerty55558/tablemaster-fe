@@ -8,7 +8,6 @@ import {
   IconRefresh,
   IconInbox,
   IconLoader2,
-  IconClock,
 } from "@tabler/icons-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -39,35 +38,8 @@ interface DeviceItemProps {
   isPending: boolean
 }
 
-function formatTTL(seconds: number): string {
-  if (seconds <= 0) return "만료됨"
-  const mins = Math.floor(seconds / 60)
-  const secs = seconds % 60
-  if (mins > 0) {
-    return `${mins}분 ${secs}초`
-  }
-  return `${secs}초`
-}
-
 function DeviceItem({ device, index, onApprove, isPending }: DeviceItemProps) {
   const [deviceName, setDeviceName] = React.useState("")
-  const [remainingTTL, setRemainingTTL] = React.useState(device.ttl)
-
-  // 서버에서 새로 받아온 ttl로 동기화
-  React.useEffect(() => {
-    setRemainingTTL(device.ttl)
-  }, [device.ttl])
-
-  // 1초마다 카운트다운
-  React.useEffect(() => {
-    if (remainingTTL <= 0) return
-
-    const timer = setInterval(() => {
-      setRemainingTTL((prev) => Math.max(0, prev - 1))
-    }, 1000)
-
-    return () => clearInterval(timer)
-  }, [remainingTTL])
 
   const handleApprove = () => {
     if (!deviceName.trim()) {
@@ -77,14 +49,11 @@ function DeviceItem({ device, index, onApprove, isPending }: DeviceItemProps) {
     onApprove(device.deviceId, deviceName.trim())
   }
 
-  const isExpiringSoon = remainingTTL <= 30
-  const isExpired = remainingTTL <= 0
-
   return (
     <motion.div
       layout
       initial={{ opacity: 0, y: -10 }}
-      animate={{ opacity: isExpired ? 0.5 : 1, y: 0 }}
+      animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, x: 50 }}
       transition={{
         duration: motionConfig.duration.normal,
@@ -101,31 +70,18 @@ function DeviceItem({ device, index, onApprove, isPending }: DeviceItemProps) {
           <code className="text-xs text-muted-foreground truncate">
             {device.deviceId}
           </code>
-          <span
-            className={`flex items-center gap-1 text-xs ${
-              isExpired
-                ? "text-destructive"
-                : isExpiringSoon
-                ? "text-amber-500"
-                : "text-muted-foreground"
-            }`}
-          >
-            <IconClock className="h-3 w-3" />
-            {formatTTL(remainingTTL)}
-          </span>
         </div>
         <Input
           placeholder="테이블 이름 (예: 1번 테이블)"
           value={deviceName}
           onChange={(e) => setDeviceName(e.target.value)}
           className="h-8 text-sm"
-          disabled={isExpired}
         />
       </div>
       <Button
         size="sm"
         onClick={handleApprove}
-        disabled={isPending || isExpired}
+        disabled={isPending}
         className="shrink-0 bg-green-600 hover:bg-green-700 text-white"
       >
         {isPending ? (
@@ -190,7 +146,7 @@ export function PendingDeviceDialog({
             </Button>
           </div>
           <DialogDescription>
-            모바일에서 요청한 디바이스 목록입니다. 3분 내 승인하지 않으면 만료됩니다.
+            모바일에서 요청한 디바이스 목록입니다. 만료 시 자동으로 제거됩니다.
           </DialogDescription>
         </DialogHeader>
 

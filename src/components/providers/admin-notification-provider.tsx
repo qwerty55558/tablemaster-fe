@@ -66,11 +66,14 @@ function formatTimeAgo(): string {
 function getDefaultMessage(type: string, data?: Record<string, unknown>): string {
   const deviceId = data?.deviceId as string
   switch (type) {
-    case NotificationType.DEVICE_REGISTER_REQUEST:
     case NotificationType.DEVICE_REGISTRATION_REQUEST:
       return deviceId
         ? `새로운 디바이스 연결 요청: ${deviceId.substring(0, 8)}...`
         : "새로운 디바이스 연결 요청"
+    case NotificationType.DEVICE_REGISTRATION_EXPIRED:
+      return deviceId
+        ? `디바이스 등록 만료: ${deviceId.substring(0, 8)}...`
+        : "디바이스 등록 요청이 만료되었습니다"
     case NotificationType.DEVICE_CONNECTED:
       return deviceId ? `디바이스 연결됨: ${deviceId}` : "디바이스 연결됨"
     case NotificationType.DEVICE_DISCONNECTED:
@@ -90,6 +93,7 @@ function mapTableDataToTable(data: TableData): Table {
     OCCUPIED: "active",
     EMPTY: "empty",
     RESERVED: "reserved",
+    INACTIVE: "inactive",
   }
   return {
     tableId: data.id,
@@ -106,8 +110,8 @@ function mapTableDataToTable(data: TableData): Table {
 
 function mapNotificationToActivity(notification: AdminNotification): Activity {
   const typeMap: Record<string, Activity["type"]> = {
-    [NotificationType.DEVICE_REGISTER_REQUEST]: "device",
     [NotificationType.DEVICE_REGISTRATION_REQUEST]: "device",
+    [NotificationType.DEVICE_REGISTRATION_EXPIRED]: "device",
     [NotificationType.DEVICE_CONNECTED]: "device",
     [NotificationType.DEVICE_DISCONNECTED]: "device",
     [NotificationType.DEVICE_DELETED]: "device",
@@ -170,9 +174,13 @@ export function AdminNotificationProvider({
 
       // 디바이스 등록 요청이면 pending 목록 refetch
       if (
-        notificationType === NotificationType.DEVICE_REGISTER_REQUEST ||
         notificationType === NotificationType.DEVICE_REGISTRATION_REQUEST
       ) {
+        queryClient.invalidateQueries({ queryKey: adminKeys.pendingDevices() })
+      }
+
+      // 디바이스 등록 만료 시 pending 목록에서 제거
+      if (notificationType === NotificationType.DEVICE_REGISTRATION_EXPIRED) {
         queryClient.invalidateQueries({ queryKey: adminKeys.pendingDevices() })
       }
 

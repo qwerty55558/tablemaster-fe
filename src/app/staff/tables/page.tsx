@@ -69,12 +69,14 @@ const statusLabels = {
   active: "이용중",
   empty: "빈테이블",
   reserved: "예약",
+  inactive: "비활성",
 } as const
 
 const statusStyles = {
   active: "bg-green-500/20 text-green-700 dark:text-green-400",
   empty: "bg-muted text-muted-foreground",
   reserved: "bg-amber-500/20 text-amber-700 dark:text-amber-400",
+  inactive: "bg-red-500/10 text-red-600 dark:text-red-400",
 } as const
 
 export default function TablesPage() {
@@ -130,6 +132,7 @@ export default function TablesPage() {
                     <SelectItem value="active">이용중</SelectItem>
                     <SelectItem value="empty">빈테이블</SelectItem>
                     <SelectItem value="reserved">예약</SelectItem>
+                    <SelectItem value="inactive">비활성</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

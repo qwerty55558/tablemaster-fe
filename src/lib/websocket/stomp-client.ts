@@ -20,8 +20,8 @@ export function createStompClient(options: StompClientOptions): Client {
       Authorization: `Bearer ${token}`,
     },
     reconnectDelay: 2000,
-    heartbeatIncoming: 10000,
-    heartbeatOutgoing: 10000,
+    heartbeatIncoming: 0,
+    heartbeatOutgoing: 0,
     debug: debug
       ? (str) => {
           console.log("[STOMP]", str)

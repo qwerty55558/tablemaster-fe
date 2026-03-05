@@ -11,7 +11,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8080"
 // 타입 정의
 // ================================
 
-export type TableStatus = "active" | "empty" | "reserved"
+export type TableStatus = "active" | "empty" | "reserved" | "inactive"
 
 export interface Table {
   tableId: string
@@ -29,7 +29,7 @@ export interface Table {
 interface TableApiResponse {
   id: string
   name: string
-  status: "OCCUPIED" | "EMPTY" | "RESERVED"
+  status: "OCCUPIED" | "EMPTY" | "RESERVED" | "INACTIVE"
   guestCount: number
   maleCount?: number
   femaleCount?: number
@@ -47,6 +47,8 @@ function mapStatus(status: string): TableStatus {
       return "empty"
     case "RESERVED":
       return "reserved"
+    case "INACTIVE":
+      return "inactive"
     default:
       return "empty"
   }

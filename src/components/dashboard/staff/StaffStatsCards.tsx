@@ -44,6 +44,7 @@ export function StaffStatsCards() {
     const activeTables = tables.filter((t) => t.status === "active").length
     const emptyTables = tables.filter((t) => t.status === "empty").length
     const reservedTables = tables.filter((t) => t.status === "reserved").length
+    const inactiveTables = tables.filter((t) => t.status === "inactive").length
 
     // 현재 이용중인 테이블의 손님 집계
     const activeTableData = tables.filter((t) => t.status === "active")
@@ -57,14 +58,17 @@ export function StaffStatsCards() {
     // 입장 대기 (예약 테이블)
     const pendingEntry = reservedTables
 
-    const occupancyRate = totalTables > 0
-      ? Math.round((activeTables / totalTables) * 100)
+    // 점유율: 비활성 테이블 제외
+    const availableTables = totalTables - inactiveTables
+    const occupancyRate = availableTables > 0
+      ? Math.round((activeTables / availableTables) * 100)
       : 0
 
     return {
       totalTables,
       activeTables,
       emptyTables,
+      inactiveTables,
       todayGuests,
       maleGuests,
       femaleGuests,
@@ -88,6 +92,7 @@ export function StaffStatsCards() {
     totalTables,
     activeTables,
     emptyTables,
+    inactiveTables,
     todayGuests,
     maleGuests,
     femaleGuests,
@@ -114,7 +119,7 @@ export function StaffStatsCards() {
         </CardHeader>
         <CardFooter className="flex-col items-start gap-1.5 text-sm">
           <div className="line-clamp-1 flex gap-2 font-medium">
-            빈 테이블 {emptyTables}개
+            빈 테이블 {emptyTables}개{inactiveTables > 0 && ` · 비활성 ${inactiveTables}개`}
           </div>
           <div className="text-muted-foreground">이용 중인 테이블 수</div>
         </CardFooter>

@@ -265,9 +265,9 @@ export function TableOverview() {
       // deviceId로 매칭되는 테이블 찾기
       const table = tables.find((t) => t.tableId === device.deviceId) || null
 
-      // 상태 결정: 디바이스 비활성 > 테이블 점유 > 빈 테이블
+      // 상태 결정: 디바이스/테이블 비활성 > 테이블 점유 > 빈 테이블
       let status: "active" | "empty" | "inactive" = "empty"
-      if (!device.isActive) {
+      if (!device.isActive || table?.status === "inactive") {
         status = "inactive"
       } else if (table?.status === "active") {
         status = "active"

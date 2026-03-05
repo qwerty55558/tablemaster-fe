@@ -3,8 +3,8 @@
  */
 
 export enum NotificationType {
-  DEVICE_REGISTER_REQUEST = "DEVICE_REGISTER_REQUEST",
-  DEVICE_REGISTRATION_REQUEST = "DEVICE_REGISTRATION_REQUEST", // 백엔드 실제 값
+  DEVICE_REGISTRATION_REQUEST = "DEVICE_REGISTRATION_REQUEST",
+  DEVICE_REGISTRATION_EXPIRED = "DEVICE_REGISTRATION_EXPIRED",
   DEVICE_CONNECTED = "DEVICE_CONNECTED",
   DEVICE_DISCONNECTED = "DEVICE_DISCONNECTED",
   DEVICE_DELETED = "DEVICE_DELETED",
@@ -42,7 +42,7 @@ export enum TableMessageType {
 export interface TableData {
   id: string
   name: string
-  status: "OCCUPIED" | "EMPTY" | "RESERVED"
+  status: "OCCUPIED" | "EMPTY" | "RESERVED" | "INACTIVE"
   guestCount: number
   maleCount?: number
   femaleCount?: number
