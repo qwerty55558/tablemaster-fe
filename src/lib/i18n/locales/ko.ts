@@ -131,6 +131,7 @@ export const ko = {
       guests: "인원",
       genderRatio: "성비",
       region: "지역",
+      createdAt: "생성시간",
       entryTime: "입장시간",
       chat: "채팅",
       action: "액션",

@@ -133,6 +133,7 @@ export const vi: Translations = {
       guests: "Số khách",
       genderRatio: "Tỷ lệ giới tính",
       region: "Khu vực",
+      createdAt: "Thời gian tạo",
       entryTime: "Giờ vào",
       chat: "Chat",
       action: "Hành động",
