@@ -14,7 +14,20 @@
       "Bash(git push:*)",
       "Bash(ls:*)",
       "Bash(git pull:*)",
-      "Bash(git:*)"
+      "Bash(git:*)",
+      "Bash(gh api:*)",
+      "Bash(docker buildx:*)",
+      "Bash(node:*)",
+      "Bash(npm ls:*)",
+      "Bash(npm ci:*)",
+      "WebSearch",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:github.com)",
+      "Bash(echo:*)",
+      "Bash(gh auth:*)",
+      "Bash(docker:*)",
+      "mcp__swagger__get-api-info",
+      "mcp__swagger__get-api-doc"
     ]
   },
   "enableAllProjectMcpServers": true,
