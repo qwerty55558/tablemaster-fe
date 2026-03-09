@@ -98,13 +98,15 @@ function mapTableDataToTable(data: TableData): Table {
   return {
     tableId: data.id,
     tableName: data.name,
+    deviceName: data.deviceName || data.id,
     status: statusMap[data.status] || "empty",
     guestCount: data.guestCount,
     maleCount: data.maleCount ?? 0,
     femaleCount: data.femaleCount ?? 0,
     location: data.location,
     chatEnabled: data.isChatting,
-    entryTime: data.updatedAt,
+    entryTime: data.createdAt,
+    updatedAt: data.updatedAt,
   }
 }
 
@@ -261,6 +263,7 @@ export function AdminNotificationProvider({
             console.log("[WebSocket] Table updated:", updatedTable.tableId)
           }
           break
+
       }
     },
     [queryClient]
