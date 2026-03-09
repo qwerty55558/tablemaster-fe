@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 import {
   IconMessageCircle,
   IconUsers,
@@ -11,6 +12,7 @@ import {
   IconGenderMale,
   IconGenderFemale,
   IconDevices,
+  IconUserPlus,
 } from "@tabler/icons-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -47,7 +49,7 @@ interface DeviceTableInfo {
   // 테이블 정보 (있으면)
   table: Table | null
   // 계산된 상태
-  status: "active" | "empty" | "inactive"
+  status: "active" | "empty" | "reserved" | "inactive"
 }
 
 const statusStyles = {
@@ -113,6 +115,7 @@ function TableDetailDialog({
   onDelete,
   isDeleting,
 }: TableDetailDialogProps) {
+  const router = useRouter()
   if (!deviceTable) return null
 
   const { table } = deviceTable
@@ -234,6 +237,17 @@ function TableDetailDialog({
             >
               닫기
             </Button>
+            {deviceTable.status === "empty" && (
+              <Button
+                onClick={() => {
+                  onOpenChange(false)
+                  router.push(`/staff/entry?deviceId=${deviceTable.deviceId}`)
+                }}
+              >
+                <IconUserPlus className="mr-2 h-4 w-4" />
+                입장 등록
+              </Button>
+            )}
             {deviceTable.status === "active" && (
               <Button
                 variant="destructive"
@@ -265,10 +279,12 @@ export function TableOverview() {
       // deviceId로 매칭되는 테이블 찾기
       const table = tables.find((t) => t.tableId === device.deviceId) || null
 
-      // 상태 결정: 디바이스/테이블 비활성 > 테이블 점유 > 빈 테이블
-      let status: "active" | "empty" | "inactive" = "empty"
+      // 상태 결정: 비활성 > 예약 > 이용중 > 빈 테이블
+      let status: "active" | "empty" | "reserved" | "inactive" = "empty"
       if (!device.isActive || table?.status === "inactive") {
         status = "inactive"
+      } else if (table?.status === "reserved") {
+        status = "reserved"
       } else if (table?.status === "active") {
         status = "active"
       }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import {
   IconFilter,
   IconMessageCircle,
@@ -8,8 +8,10 @@ import {
   IconSearch,
   IconUsers,
   IconUserMinus,
-  IconGift,
-  IconBan,
+  IconClock,
+  IconAlertCircle,
+  IconLoader2,
+  IconRefresh,
 } from "@tabler/icons-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -47,23 +49,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
-
-// 더미 데이터
-const tablesData = [
-  { id: 1, name: "A1", status: "active", guests: 4, male: 2, female: 2, region: "서울", chatEnabled: true, entryTime: "19:30", spent: 125000 },
-  { id: 2, name: "A2", status: "active", guests: 3, male: 1, female: 2, region: "부산", chatEnabled: true, entryTime: "19:45", spent: 89000 },
-  { id: 3, name: "A3", status: "empty", guests: 0, male: 0, female: 0, region: "", chatEnabled: false, entryTime: "", spent: 0 },
-  { id: 4, name: "B1", status: "active", guests: 6, male: 3, female: 3, region: "서울", chatEnabled: true, entryTime: "20:00", spent: 230000 },
-  { id: 5, name: "B2", status: "active", guests: 2, male: 1, female: 1, region: "인천", chatEnabled: false, entryTime: "20:15", spent: 56000 },
-  { id: 6, name: "B3", status: "empty", guests: 0, male: 0, female: 0, region: "", chatEnabled: false, entryTime: "", spent: 0 },
-  { id: 7, name: "C1", status: "active", guests: 5, male: 2, female: 3, region: "대구", chatEnabled: true, entryTime: "20:30", spent: 178000 },
-  { id: 8, name: "C2", status: "reserved", guests: 0, male: 0, female: 0, region: "", chatEnabled: false, entryTime: "", spent: 0 },
-  { id: 9, name: "C3", status: "active", guests: 4, male: 2, female: 2, region: "광주", chatEnabled: true, entryTime: "20:45", spent: 95000 },
-  { id: 10, name: "D1", status: "empty", guests: 0, male: 0, female: 0, region: "", chatEnabled: false, entryTime: "", spent: 0 },
-]
-
-type TableData = typeof tablesData[0]
+import { useTables, useDeleteTable } from "@/hooks/use-tables"
+import type { Table as TableType } from "@/lib/api/tables"
+import { toast } from "sonner"
 
 const statusLabels = {
   active: "이용중",
@@ -79,27 +69,94 @@ const statusStyles = {
   inactive: "bg-red-500/10 text-red-600 dark:text-red-400",
 } as const
 
+function formatTime(dateString?: string): string {
+  if (!dateString) return "-"
+  const date = new Date(dateString)
+  return new Intl.DateTimeFormat("ko-KR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date)
+}
+
+function formatDuration(dateString?: string): string {
+  if (!dateString) return "-"
+  const start = new Date(dateString)
+  const now = new Date()
+  const diffMs = now.getTime() - start.getTime()
+  const diffMins = Math.floor(diffMs / (1000 * 60))
+  const hours = Math.floor(diffMins / 60)
+  const mins = diffMins % 60
+
+  if (hours > 0) {
+    return `${hours}시간 ${mins}분`
+  }
+  return `${mins}분`
+}
+
 export default function TablesPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [searchQuery, setSearchQuery] = useState("")
-  const [selectedTable, setSelectedTable] = useState<TableData | null>(null)
+  const [selectedTableId, setSelectedTableId] = useState<string | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
 
-  const filteredTables = tablesData.filter((table) => {
-    const matchesStatus = statusFilter === "all" || table.status === statusFilter
-    const matchesSearch = table.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      table.region.toLowerCase().includes(searchQuery.toLowerCase())
-    return matchesStatus && matchesSearch
-  })
+  const { data: tables = [], isLoading, isError, error, refetch, isFetching } = useTables()
+  const deleteTable = useDeleteTable()
 
-  const handleOpenDetail = (table: TableData) => {
-    setSelectedTable(table)
+  const filteredTables = useMemo(() => {
+    return tables.filter((table) => {
+      const matchesStatus = statusFilter === "all" || table.status === statusFilter
+      const matchesSearch =
+        table.tableName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        table.deviceName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        table.location.toLowerCase().includes(searchQuery.toLowerCase())
+      return matchesStatus && matchesSearch
+    })
+  }, [tables, statusFilter, searchQuery])
+
+  const selectedTable = useMemo(() => {
+    if (!selectedTableId) return null
+    return tables.find((t) => t.tableId === selectedTableId) ?? null
+  }, [selectedTableId, tables])
+
+  const handleOpenDetail = (table: TableType) => {
+    setSelectedTableId(table.tableId)
     setDetailOpen(true)
   }
 
-  const handleExit = () => {
-    alert(`${selectedTable?.name} 테이블 퇴장 처리되었습니다.`)
-    setDetailOpen(false)
+  const handleExit = async () => {
+    if (!selectedTable) return
+    try {
+      await deleteTable.mutateAsync(selectedTable.tableId)
+      toast.success(`${selectedTable.tableName} 테이블 퇴장 처리되었습니다`)
+      setDetailOpen(false)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "퇴장 처리에 실패했습니다"
+      toast.error(message)
+    }
+  }
+
+  if (isError) {
+    return (
+      <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+        <div className="px-4 lg:px-6">
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <IconAlertCircle className="h-12 w-12 text-destructive mb-4" />
+              <p className="text-lg font-medium text-destructive mb-2">
+                데이터를 불러오는데 실패했습니다
+              </p>
+              <p className="text-sm text-muted-foreground mb-4">
+                {error?.message || "알 수 없는 오류가 발생했습니다"}
+              </p>
+              <Button onClick={() => refetch()} variant="outline">
+                <IconRefresh className="mr-2 h-4 w-4" />
+                다시 시도
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -135,80 +192,113 @@ export default function TablesPage() {
                     <SelectItem value="inactive">비활성</SelectItem>
                   </SelectContent>
                 </Select>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => refetch()}
+                  disabled={isFetching}
+                >
+                  <IconRefresh className={cn("size-4", isFetching && "animate-spin")} />
+                </Button>
               </div>
             </div>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>테이블</TableHead>
-                  <TableHead>상태</TableHead>
-                  <TableHead>인원</TableHead>
-                  <TableHead>성비</TableHead>
-                  <TableHead>지역</TableHead>
-                  <TableHead>입장시간</TableHead>
-                  <TableHead>채팅</TableHead>
-                  <TableHead className="text-right">액션</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredTables.map((table) => (
-                  <TableRow key={table.id}>
-                    <TableCell className="font-medium">{table.name}</TableCell>
-                    <TableCell>
-                      <Badge className={cn("font-normal", statusStyles[table.status as keyof typeof statusStyles])}>
-                        {statusLabels[table.status as keyof typeof statusLabels]}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {table.guests > 0 ? (
-                        <span className="flex items-center gap-1">
-                          <IconUsers className="size-4" />
-                          {table.guests}명
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {table.guests > 0 ? (
-                        <span>남 {table.male} / 여 {table.female}</span>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {table.region || <span className="text-muted-foreground">-</span>}
-                    </TableCell>
-                    <TableCell>
-                      {table.entryTime || <span className="text-muted-foreground">-</span>}
-                    </TableCell>
-                    <TableCell>
-                      {table.chatEnabled ? (
-                        <IconMessageCircle className="size-4 text-green-600" />
-                      ) : (
-                        <IconMessageOff className="size-4 text-muted-foreground" />
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => handleOpenDetail(table)}
-                      >
-                        상세
-                      </Button>
-                    </TableCell>
-                  </TableRow>
+            {isLoading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Skeleton key={i} className="h-12 w-full" />
                 ))}
-              </TableBody>
-            </Table>
-
-            {filteredTables.length === 0 && (
-              <div className="py-8 text-center text-muted-foreground">
-                검색 결과가 없습니다
               </div>
+            ) : (
+              <>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>테이블</TableHead>
+                      <TableHead>상태</TableHead>
+                      <TableHead>인원</TableHead>
+                      <TableHead>성비</TableHead>
+                      <TableHead>지역</TableHead>
+                      <TableHead>입장시간</TableHead>
+                      <TableHead>이용시간</TableHead>
+                      <TableHead>채팅</TableHead>
+                      <TableHead className="text-right">액션</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredTables.map((table) => (
+                      <TableRow key={table.tableId}>
+                        <TableCell className="font-medium">{table.deviceName}</TableCell>
+                        <TableCell>
+                          <Badge className={cn("font-normal", statusStyles[table.status])}>
+                            {statusLabels[table.status]}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {table.guestCount > 0 ? (
+                            <span className="flex items-center gap-1">
+                              <IconUsers className="size-4" />
+                              {table.guestCount}명
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {table.guestCount > 0 ? (
+                            <span>남 {table.maleCount} / 여 {table.femaleCount}</span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {table.location || <span className="text-muted-foreground">-</span>}
+                        </TableCell>
+                        <TableCell>
+                          {table.entryTime ? (
+                            <span className="flex items-center gap-1">
+                              <IconClock className="size-3.5" />
+                              {formatTime(table.entryTime)}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {table.entryTime ? (
+                            <span>{formatDuration(table.entryTime)}</span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {table.chatEnabled ? (
+                            <IconMessageCircle className="size-4 text-green-600" />
+                          ) : (
+                            <IconMessageOff className="size-4 text-muted-foreground" />
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleOpenDetail(table)}
+                          >
+                            상세
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+
+                {filteredTables.length === 0 && (
+                  <div className="py-8 text-center text-muted-foreground">
+                    {tables.length === 0 ? "등록된 테이블이 없습니다" : "검색 결과가 없습니다"}
+                  </div>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
@@ -218,7 +308,7 @@ export default function TablesPage() {
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>테이블 {selectedTable?.name} 상세</DialogTitle>
+            <DialogTitle>{selectedTable?.deviceName} 상세</DialogTitle>
             <DialogDescription>
               테이블 정보 및 관리
             </DialogDescription>
@@ -229,43 +319,38 @@ export default function TablesPage() {
               {/* 상태 */}
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">상태</span>
-                <Badge className={cn("font-normal", statusStyles[selectedTable.status as keyof typeof statusStyles])}>
-                  {statusLabels[selectedTable.status as keyof typeof statusLabels]}
+                <Badge className={cn("font-normal", statusStyles[selectedTable.status])}>
+                  {statusLabels[selectedTable.status]}
                 </Badge>
               </div>
 
               {selectedTable.status === "active" && (
                 <>
                   <Separator />
-                  
+
                   {/* 인원 정보 */}
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
                       <Label className="text-muted-foreground">총 인원</Label>
-                      <p className="font-medium">{selectedTable.guests}명</p>
+                      <p className="font-medium">{selectedTable.guestCount}명</p>
                     </div>
                     <div>
                       <Label className="text-muted-foreground">성비</Label>
-                      <p className="font-medium">남 {selectedTable.male} / 여 {selectedTable.female}</p>
+                      <p className="font-medium">남 {selectedTable.maleCount} / 여 {selectedTable.femaleCount}</p>
                     </div>
                     <div>
                       <Label className="text-muted-foreground">지역</Label>
-                      <p className="font-medium">{selectedTable.region}</p>
+                      <p className="font-medium">{selectedTable.location || "-"}</p>
                     </div>
                     <div>
                       <Label className="text-muted-foreground">입장시간</Label>
-                      <p className="font-medium">{selectedTable.entryTime}</p>
+                      <p className="font-medium">{formatTime(selectedTable.entryTime)}</p>
                     </div>
                   </div>
 
-                  <Separator />
-
-                  {/* 이용 금액 */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">현재 이용금액</span>
-                    <span className="font-semibold text-lg">
-                      {selectedTable.spent.toLocaleString()}원
-                    </span>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">이용 시간</span>
+                    <span className="font-medium">{formatDuration(selectedTable.entryTime)}</span>
                   </div>
 
                   <Separator />
@@ -281,24 +366,19 @@ export default function TablesPage() {
 
                   <Separator />
 
-                  {/* 액션 버튼 */}
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button variant="outline" className="gap-2">
-                      <IconGift className="size-4" />
-                      선물 보내기
-                    </Button>
-                    <Button variant="outline" className="gap-2">
-                      <IconBan className="size-4" />
-                      채팅 제재
-                    </Button>
-                  </div>
-                  <Button 
-                    variant="destructive" 
+                  {/* 퇴장 버튼 */}
+                  <Button
+                    variant="destructive"
                     className="w-full gap-2"
                     onClick={handleExit}
+                    disabled={deleteTable.isPending}
                   >
-                    <IconUserMinus className="size-4" />
-                    퇴장 처리
+                    {deleteTable.isPending ? (
+                      <IconLoader2 className="size-4 animate-spin" />
+                    ) : (
+                      <IconUserMinus className="size-4" />
+                    )}
+                    {deleteTable.isPending ? "처리 중..." : "퇴장 처리"}
                   </Button>
                 </>
               )}
@@ -310,10 +390,14 @@ export default function TablesPage() {
               )}
 
               {selectedTable.status === "reserved" && (
-                <div className="py-4 text-center">
-                  <p className="text-muted-foreground mb-2">예약된 테이블입니다.</p>
-                  <p className="text-sm">예약시간: 21:30</p>
-                  <p className="text-sm">예약인원: 4명</p>
+                <div className="py-4 text-center text-muted-foreground">
+                  예약된 테이블입니다.
+                </div>
+              )}
+
+              {selectedTable.status === "inactive" && (
+                <div className="py-4 text-center text-muted-foreground">
+                  비활성 테이블입니다.
                 </div>
               )}
             </div>
