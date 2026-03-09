@@ -1,0 +1,22 @@
+# Dependencies
+node_modules
+
+# Next.js build output
+.next
+
+# Git
+.git
+.gitignore
+
+# IDE
+.idea
+.vscode
+
+# Environment files (use build args instead)
+.env*
+!.env.example
+
+# Misc
+*.md
+.DS_Store
+.claude
