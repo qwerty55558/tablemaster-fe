@@ -16,6 +16,7 @@ export type TableStatus = "active" | "empty" | "reserved" | "inactive"
 export interface Table {
   tableId: string
   tableName: string
+  deviceName: string
   status: TableStatus
   guestCount: number
   maleCount: number
@@ -23,18 +24,21 @@ export interface Table {
   location: string
   chatEnabled: boolean
   entryTime?: string
+  updatedAt?: string
 }
 
 // 백엔드 응답 타입
 interface TableApiResponse {
   id: string
   name: string
-  status: "OCCUPIED" | "EMPTY" | "RESERVED" | "INACTIVE"
+  deviceName?: string
+  status: "AVAILABLE" | "OCCUPIED" | "RESERVED" | "CHATTING" | "INACTIVE" | "DELETED"
   guestCount: number
   maleCount?: number
   femaleCount?: number
   location: string
   isChatting: boolean
+  createdAt?: string
   updatedAt?: string
 }
 
@@ -42,12 +46,14 @@ interface TableApiResponse {
 function mapStatus(status: string): TableStatus {
   switch (status) {
     case "OCCUPIED":
+    case "CHATTING":
       return "active"
-    case "EMPTY":
+    case "AVAILABLE":
       return "empty"
     case "RESERVED":
       return "reserved"
     case "INACTIVE":
+    case "DELETED":
       return "inactive"
     default:
       return "empty"
@@ -59,22 +65,68 @@ function mapTableResponse(data: TableApiResponse): Table {
   return {
     tableId: data.id,
     tableName: data.name,
+    deviceName: data.deviceName || data.id,
     status: mapStatus(data.status),
     guestCount: data.guestCount,
     maleCount: data.maleCount ?? 0,
     femaleCount: data.femaleCount ?? 0,
     location: data.location,
     chatEnabled: data.isChatting,
-    entryTime: data.updatedAt,
+    entryTime: data.createdAt,
+    updatedAt: data.updatedAt,
   }
 }
 
+// 디바이스용 (POST /tables/setup) - 디바이스가 직접 호출
 export interface SetupTableRequest {
   tableId: string
   location: string
   guestCount: number
   maleCount: number
   femaleCount: number
+}
+
+// 프론트용 (POST /tables/setup/{deviceId}) - 스태프가 호출
+export interface SetupTableForDeviceRequest {
+  deviceId: string
+  tableName: string
+  location: string
+  guestCount: number
+  maleCount: number
+  femaleCount: number
+}
+
+// 입장 기록 타입 (POST /tables/history)
+export interface TableHistoryEntry {
+  id: number
+  deviceId: string
+  name: string
+  location: string
+  guestCount: number
+  femaleCount: number
+  maleCount: number
+  revenue: number
+  createdAt: string
+  deletedAt: string | null
+}
+
+export interface TableHistoryRequest {
+  offset: number
+  limit: number
+}
+
+export interface TableHistoryResponse {
+  content: TableHistoryEntry[]
+  totalCount: number
+  offset: number
+  limit: number
+  hasNext: boolean
+}
+
+// 빈 디바이스 응답 타입 (GET /tables/available)
+export interface AvailableDevice {
+  deviceId: string
+  deviceName: string
 }
 
 // 에러 응답 타입
@@ -191,6 +243,20 @@ export async function fetchTables(): Promise<Table[]> {
 }
 
 /**
+ * 빈 디바이스 목록 조회 (테이블 미등록)
+ */
+export async function fetchAvailableDevices(): Promise<AvailableDevice[]> {
+  const headers = await getAuthHeaders()
+
+  const response = await fetch(`${API_BASE_URL}/api/v1/tables/available`, {
+    method: "GET",
+    headers,
+  })
+
+  return handleResponse<AvailableDevice[]>(response).then((data) => data || [])
+}
+
+/**
  * 테이블 상세 조회
  */
 export async function fetchTable(tableId: string): Promise<Table> {
@@ -206,7 +272,7 @@ export async function fetchTable(tableId: string): Promise<Table> {
 }
 
 /**
- * 테이블 설정 (입장 시)
+ * 테이블 설정 - 디바이스용 (POST /tables/setup)
  */
 export async function setupTable(data: SetupTableRequest): Promise<Table> {
   const headers = await getAuthHeaders()
@@ -215,6 +281,22 @@ export async function setupTable(data: SetupTableRequest): Promise<Table> {
     method: "POST",
     headers,
     body: JSON.stringify(data),
+  })
+
+  return handleResponse<Table>(response)
+}
+
+/**
+ * 테이블 설정 - 프론트용 (POST /tables/setup/{deviceId})
+ */
+export async function setupTableForDevice(data: SetupTableForDeviceRequest): Promise<Table> {
+  const { deviceId, tableName, ...rest } = data
+  const headers = await getAuthHeaders()
+
+  const response = await fetch(`${API_BASE_URL}/api/v1/tables/setup/${deviceId}`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ tableId: tableName, ...rest }),
   })
 
   return handleResponse<Table>(response)
@@ -233,4 +315,22 @@ export async function deleteTable(tableId: string): Promise<void> {
   })
 
   return handleResponse<void>(response)
+}
+
+/**
+ * 입장 기록 조회
+ * POST /tables/history
+ */
+export async function fetchTableHistory(
+  params: TableHistoryRequest,
+): Promise<TableHistoryResponse> {
+  const headers = await getAuthHeaders()
+
+  const response = await fetch(`${API_BASE_URL}/api/v1/tables/history`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(params),
+  })
+
+  return handleResponse<TableHistoryResponse>(response)
 }

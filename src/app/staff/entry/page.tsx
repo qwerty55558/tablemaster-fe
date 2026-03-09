@@ -1,16 +1,23 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { useSearchParams } from "next/navigation"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { z } from "zod"
 import {
   IconCheck,
   IconClock,
   IconMinus,
   IconPlus,
   IconUsers,
-  IconTrash,
+  IconAlertCircle,
+  IconLoader2,
+  IconRefresh,
+  IconArrowUp,
+  IconArrowDown,
 } from "@tabler/icons-react"
 
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -19,7 +26,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -37,75 +43,146 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
+import { useAvailableDevices, useSetupTable, useTableHistory } from "@/hooks/use-tables"
+import { toast } from "sonner"
 
-// 빈 테이블 더미 데이터
-const emptyTables = [
-  { id: 3, name: "A3" },
-  { id: 6, name: "B3" },
-  { id: 10, name: "D1" },
-  { id: 11, name: "D2" },
-  { id: 12, name: "D3" },
-]
+// ================================
+// Zod 스키마
+// ================================
 
-// 대기열 더미 데이터
-const waitingQueue = [
-  { id: 1, name: "홍길동", guests: 4, male: 2, female: 2, waitTime: "15분", phone: "010-****-1234" },
-  { id: 2, name: "김철수", guests: 2, male: 1, female: 1, waitTime: "8분", phone: "010-****-5678" },
-  { id: 3, name: "이영희", guests: 6, male: 3, female: 3, waitTime: "3분", phone: "010-****-9012" },
-]
+const entryFormSchema = z.object({
+  deviceId: z.string().min(1, "테이블을 선택해주세요"),
+  tableName: z.string().min(1, "테이블 이름을 입력해주세요").max(20, "20자 이하로 입력해주세요"),
+  maleCount: z.number().int().min(0, "0 이상이어야 합니다"),
+  femaleCount: z.number().int().min(0, "0 이상이어야 합니다"),
+  location: z.string().min(1, "지역을 선택해주세요"),
+}).refine((data) => data.maleCount + data.femaleCount > 0, {
+  message: "최소 1명 이상이어야 합니다",
+  path: ["maleCount"],
+})
 
-// 최근 입장 기록 더미 데이터
-const recentEntries = [
-  { id: 1, table: "A1", guests: 4, male: 2, female: 2, region: "서울", time: "20:45", staff: "김스태프" },
-  { id: 2, table: "B1", guests: 6, male: 3, female: 3, region: "서울", time: "20:30", staff: "이스태프" },
-  { id: 3, table: "C1", guests: 5, male: 2, female: 3, region: "대구", time: "20:15", staff: "김스태프" },
-  { id: 4, table: "B2", guests: 2, male: 1, female: 1, region: "인천", time: "20:00", staff: "이스태프" },
-]
+type EntryFormValues = z.infer<typeof entryFormSchema>
+
+// ================================
+// 상수
+// ================================
 
 const regions = [
-  "서울", "부산", "대구", "인천", "광주", 
+  "서울", "부산", "대구", "인천", "광주",
   "대전", "울산", "세종", "경기", "강원",
-  "충북", "충남", "전북", "전남", "경북", 
-  "경남", "제주", "해외"
+  "충북", "충남", "전북", "전남", "경북",
+  "경남", "제주", "해외",
 ]
 
-export default function EntryPage() {
-  const [selectedTable, setSelectedTable] = useState<string>("")
-  const [maleCount, setMaleCount] = useState(0)
-  const [femaleCount, setFemaleCount] = useState(0)
-  const [region, setRegion] = useState<string>("")
-  const [chatEnabled, setChatEnabled] = useState(true)
+function formatTime(dateString?: string | null): string {
+  if (!dateString) return "-"
+  const date = new Date(dateString)
+  return new Intl.DateTimeFormat("ko-KR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date)
+}
 
+function formatDateTime(date: Date): string {
+  return new Intl.DateTimeFormat("ko-KR", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(date)
+}
+
+function formatDuration(start?: string | null, end?: string | null): string {
+  if (!start) return "-"
+  const startDate = new Date(start)
+  const endDate = end ? new Date(end) : new Date()
+  const diffMs = endDate.getTime() - startDate.getTime()
+  if (diffMs < 0) return "-"
+  const totalMin = Math.floor(diffMs / 60000)
+  const hours = Math.floor(totalMin / 60)
+  const minutes = totalMin % 60
+  if (hours > 0) return `${hours}시간 ${minutes}분`
+  return `${minutes}분`
+}
+
+type SortOrder = "desc" | "asc"
+
+// ================================
+// 페이지
+// ================================
+
+export default function EntryPage() {
+  const searchParams = useSearchParams()
+  const preselectedDeviceId = searchParams.get("deviceId")
+
+  const [sortOrder, setSortOrder] = useState<SortOrder>("desc")
+  const [offset, setOffset] = useState(0)
+  const limit = 20
+
+  const { data: availableDevices = [], isLoading: devicesLoading } = useAvailableDevices()
+  const {
+    data: historyData,
+    isLoading: historyLoading,
+    isFetching: historyFetching,
+    dataUpdatedAt,
+    refetch: refetchHistory,
+  } = useTableHistory({ offset, limit })
+  const setupTable = useSetupTable()
+
+  const form = useForm<EntryFormValues>({
+    resolver: zodResolver(entryFormSchema),
+    defaultValues: {
+      deviceId: preselectedDeviceId || "",
+      tableName: "",
+      maleCount: 0,
+      femaleCount: 0,
+      location: "",
+    },
+  })
+
+  const { watch, setValue, handleSubmit, formState: { errors }, reset } = form
+
+  // URL query param으로 deviceId가 넘어온 경우 폼에 세팅
+  useEffect(() => {
+    if (preselectedDeviceId) {
+      setValue("deviceId", preselectedDeviceId, { shouldValidate: true })
+    }
+  }, [preselectedDeviceId, setValue])
+  const deviceId = watch("deviceId")
+  const maleCount = watch("maleCount")
+  const femaleCount = watch("femaleCount")
   const totalGuests = maleCount + femaleCount
 
-  const handleSubmit = () => {
-    console.log({
-      table: selectedTable,
-      male: maleCount,
-      female: femaleCount,
-      region,
-      chatEnabled,
-    })
-    alert(`테이블 ${selectedTable}에 ${totalGuests}명 입장 등록 완료`)
-    setSelectedTable("")
-    setMaleCount(0)
-    setFemaleCount(0)
-    setRegion("")
-    setChatEnabled(true)
-  }
+  const historyEntries = useMemo(() => {
+    const entries = historyData?.content ?? []
+    if (sortOrder === "asc") return [...entries].reverse()
+    return entries
+  }, [historyData?.content, sortOrder])
 
-  const handleQueueEntry = (queueItem: typeof waitingQueue[0]) => {
-    if (!selectedTable) {
-      alert("먼저 테이블을 선택해주세요.")
-      return
+  const onSubmit = async (values: EntryFormValues) => {
+    try {
+      await setupTable.mutateAsync({
+        deviceId: values.deviceId,
+        tableName: values.tableName,
+        location: values.location,
+        guestCount: values.maleCount + values.femaleCount,
+        maleCount: values.maleCount,
+        femaleCount: values.femaleCount,
+      })
+      toast.success(`${values.tableName}에 ${values.maleCount + values.femaleCount}명 입장 등록 완료`)
+      reset()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "입장 등록에 실패했습니다"
+      toast.error(message)
     }
-    setMaleCount(queueItem.male)
-    setFemaleCount(queueItem.female)
-    alert(`${queueItem.name}님을 테이블 ${selectedTable}에 배정합니다.`)
   }
 
-  const isValid = selectedTable && totalGuests > 0 && region
+  const handleDeviceSelect = (id: string) => {
+    setValue("deviceId", id, { shouldValidate: true })
+  }
 
   return (
     <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
@@ -117,251 +194,323 @@ export default function EntryPage() {
               <CardTitle>입장 등록</CardTitle>
               <CardDescription>새로운 손님 입장 정보를 입력하세요</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              {/* 테이블 선택 */}
-              <div className="space-y-2">
-                <Label>테이블 선택</Label>
-                <Select value={selectedTable} onValueChange={setSelectedTable}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="빈 테이블을 선택하세요" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {emptyTables.map((table) => (
-                      <SelectItem key={table.id} value={table.name}>
-                        테이블 {table.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* 인원 입력 */}
-              <div className="space-y-4">
-                <Label>인원 수</Label>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-sm text-muted-foreground">남성</Label>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => setMaleCount(Math.max(0, maleCount - 1))}
-                        disabled={maleCount === 0}
-                      >
-                        <IconMinus className="size-4" />
-                      </Button>
-                      <Input
-                        type="number"
-                        value={maleCount}
-                        onChange={(e) => setMaleCount(Math.max(0, parseInt(e.target.value) || 0))}
-                        className="text-center"
-                        min={0}
-                      />
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => setMaleCount(maleCount + 1)}
-                      >
-                        <IconPlus className="size-4" />
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-sm text-muted-foreground">여성</Label>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => setFemaleCount(Math.max(0, femaleCount - 1))}
-                        disabled={femaleCount === 0}
-                      >
-                        <IconMinus className="size-4" />
-                      </Button>
-                      <Input
-                        type="number"
-                        value={femaleCount}
-                        onChange={(e) => setFemaleCount(Math.max(0, parseInt(e.target.value) || 0))}
-                        className="text-center"
-                        min={0}
-                      />
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => setFemaleCount(femaleCount + 1)}
-                      >
-                        <IconPlus className="size-4" />
-                      </Button>
-                    </div>
-                  </div>
+            <CardContent>
+              <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+                {/* 테이블 선택 */}
+                <div className="space-y-2">
+                  <Label>테이블 선택</Label>
+                  {devicesLoading ? (
+                    <Skeleton className="h-10 w-full" />
+                  ) : (
+                    <Select value={deviceId} onValueChange={handleDeviceSelect}>
+                      <SelectTrigger className={errors.deviceId ? "border-destructive" : ""}>
+                        <SelectValue placeholder="빈 테이블을 선택하세요" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableDevices.length === 0 ? (
+                          <div className="py-4 text-center text-sm text-muted-foreground">
+                            빈 테이블이 없습니다
+                          </div>
+                        ) : (
+                          availableDevices.map((device) => (
+                            <SelectItem key={device.deviceId} value={device.deviceId}>
+                              {device.deviceName || device.deviceId}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  {errors.deviceId && (
+                    <p className="text-xs text-destructive">{errors.deviceId.message}</p>
+                  )}
                 </div>
-                {totalGuests > 0 && (
-                  <p className="text-sm text-muted-foreground">
-                    총 {totalGuests}명 (남 {maleCount}, 여 {femaleCount})
-                  </p>
-                )}
-              </div>
 
-              {/* 지역 선택 */}
-              <div className="space-y-2">
-                <Label>지역</Label>
-                <Select value={region} onValueChange={setRegion}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="지역을 선택하세요" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {regions.map((r) => (
-                      <SelectItem key={r} value={r}>
-                        {r}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                {/* 테이블 이름 */}
+                <div className="space-y-2">
+                  <Label>테이블 이름</Label>
+                  <Input
+                    placeholder="예: A1, 1번 테이블"
+                    {...form.register("tableName")}
+                    className={errors.tableName ? "border-destructive" : ""}
+                  />
+                  {errors.tableName && (
+                    <p className="text-xs text-destructive">{errors.tableName.message}</p>
+                  )}
+                </div>
 
-              {/* 채팅 허용 */}
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="chatEnabled"
-                  checked={chatEnabled}
-                  onCheckedChange={(checked) => setChatEnabled(checked as boolean)}
-                />
-                <Label htmlFor="chatEnabled" className="cursor-pointer">
-                  다른 테이블과 채팅 허용
-                </Label>
-              </div>
+                {/* 인원 입력 */}
+                <div className="space-y-4">
+                  <Label>인원 수</Label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-sm text-muted-foreground">남성</Label>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => setValue("maleCount", Math.max(0, maleCount - 1), { shouldValidate: true })}
+                          disabled={maleCount === 0}
+                        >
+                          <IconMinus className="size-4" />
+                        </Button>
+                        <Input
+                          type="number"
+                          value={maleCount}
+                          onChange={(e) => setValue("maleCount", Math.max(0, parseInt(e.target.value) || 0), { shouldValidate: true })}
+                          className="text-center"
+                          min={0}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => setValue("maleCount", maleCount + 1, { shouldValidate: true })}
+                        >
+                          <IconPlus className="size-4" />
+                        </Button>
+                      </div>
+                    </div>
 
-              {/* 등록 버튼 */}
-              <Button
-                className="w-full"
-                size="lg"
-                onClick={handleSubmit}
-                disabled={!isValid}
-              >
-                <IconCheck className="size-4 mr-2" />
-                입장 등록
-              </Button>
+                    <div className="space-y-2">
+                      <Label className="text-sm text-muted-foreground">여성</Label>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => setValue("femaleCount", Math.max(0, femaleCount - 1), { shouldValidate: true })}
+                          disabled={femaleCount === 0}
+                        >
+                          <IconMinus className="size-4" />
+                        </Button>
+                        <Input
+                          type="number"
+                          value={femaleCount}
+                          onChange={(e) => setValue("femaleCount", Math.max(0, parseInt(e.target.value) || 0), { shouldValidate: true })}
+                          className="text-center"
+                          min={0}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => setValue("femaleCount", femaleCount + 1, { shouldValidate: true })}
+                        >
+                          <IconPlus className="size-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                  {totalGuests > 0 && (
+                    <p className="text-sm text-muted-foreground">
+                      총 {totalGuests}명 (남 {maleCount}, 여 {femaleCount})
+                    </p>
+                  )}
+                  {errors.maleCount && (
+                    <p className="text-xs text-destructive">{errors.maleCount.message}</p>
+                  )}
+                </div>
+
+                {/* 지역 선택 */}
+                <div className="space-y-2">
+                  <Label>지역</Label>
+                  <Select
+                    value={watch("location")}
+                    onValueChange={(v) => setValue("location", v, { shouldValidate: true })}
+                  >
+                    <SelectTrigger className={errors.location ? "border-destructive" : ""}>
+                      <SelectValue placeholder="지역을 선택하세요" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {regions.map((r) => (
+                        <SelectItem key={r} value={r}>
+                          {r}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {errors.location && (
+                    <p className="text-xs text-destructive">{errors.location.message}</p>
+                  )}
+                </div>
+
+                {/* 등록 버튼 */}
+                <Button
+                  type="submit"
+                  className="w-full"
+                  size="lg"
+                  disabled={setupTable.isPending}
+                >
+                  {setupTable.isPending ? (
+                    <IconLoader2 className="size-4 mr-2 animate-spin" />
+                  ) : (
+                    <IconCheck className="size-4 mr-2" />
+                  )}
+                  {setupTable.isPending ? "등록 중..." : "입장 등록"}
+                </Button>
+              </form>
             </CardContent>
           </Card>
 
-          {/* 오른쪽 영역 */}
-          <div className="space-y-6">
-            {/* 빈 테이블 현황 */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">빈 테이블 현황</CardTitle>
-                <CardDescription>클릭하여 테이블 선택</CardDescription>
-              </CardHeader>
-              <CardContent>
+          {/* 빈 테이블 현황 */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">빈 테이블 현황</CardTitle>
+              <CardDescription>
+                {devicesLoading ? "로딩 중..." : `${availableDevices.length}개 테이블 이용 가능`}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {devicesLoading ? (
                 <div className="grid grid-cols-5 gap-2">
-                  {emptyTables.map((table) => (
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Skeleton key={i} className="h-16 rounded-lg" />
+                  ))}
+                </div>
+              ) : availableDevices.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                  <IconAlertCircle className="size-8 mb-2" />
+                  <p className="text-sm">현재 빈 테이블이 없습니다</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-5 gap-2">
+                  {availableDevices.map((device) => (
                     <button
-                      key={table.id}
-                      onClick={() => setSelectedTable(table.name)}
+                      type="button"
+                      key={device.deviceId}
+                      onClick={() => handleDeviceSelect(device.deviceId)}
                       className={cn(
                         "flex flex-col items-center justify-center rounded-lg border-2 p-3 transition-colors hover:bg-accent",
-                        selectedTable === table.name
+                        deviceId === device.deviceId
                           ? "border-primary bg-primary/10"
-                          : "border-muted"
+                          : "border-muted",
                       )}
                     >
-                      <span className="text-lg font-bold">{table.name}</span>
+                      <span className="text-lg font-bold">{device.deviceName || device.deviceId}</span>
                     </button>
                   ))}
                 </div>
-              </CardContent>
-            </Card>
-
-            {/* 대기열 */}
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-base">대기열</CardTitle>
-                    <CardDescription>{waitingQueue.length}팀 대기중</CardDescription>
-                  </div>
-                  <Badge variant="secondary">
-                    <IconClock className="size-3 mr-1" />
-                    실시간
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {waitingQueue.map((item, index) => (
-                    <div 
-                      key={item.id}
-                      className="flex items-center justify-between rounded-lg border p-3"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-sm font-bold">
-                          {index + 1}
-                        </div>
-                        <div>
-                          <p className="font-medium">{item.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {item.guests}명 (남{item.male}/여{item.female}) · {item.waitTime} 대기
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex gap-1">
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => handleQueueEntry(item)}
-                        >
-                          입장
-                        </Button>
-                        <Button size="sm" variant="ghost" className="text-destructive">
-                          <IconTrash className="size-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         {/* 최근 입장 기록 */}
         <Card className="mt-6">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">최근 입장 기록</CardTitle>
-            <CardDescription>오늘 입장한 손님 목록</CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-base">최근 입장 기록</CardTitle>
+                <CardDescription>
+                  {dataUpdatedAt
+                    ? `${formatDateTime(new Date(dataUpdatedAt))} 기준`
+                    : "데이터 로딩 중..."}
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSortOrder((prev) => (prev === "desc" ? "asc" : "desc"))}
+                >
+                  {sortOrder === "desc" ? (
+                    <IconArrowDown className="size-4 mr-1" />
+                  ) : (
+                    <IconArrowUp className="size-4 mr-1" />
+                  )}
+                  {sortOrder === "desc" ? "최근순" : "오래된순"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => refetchHistory()}
+                  disabled={historyFetching}
+                >
+                  <IconRefresh className={cn("size-4 mr-1", historyFetching && "animate-spin")} />
+                  새로고침
+                </Button>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>테이블</TableHead>
-                  <TableHead>인원</TableHead>
-                  <TableHead>성비</TableHead>
-                  <TableHead>지역</TableHead>
-                  <TableHead>입장시간</TableHead>
-                  <TableHead>담당자</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {recentEntries.map((entry) => (
-                  <TableRow key={entry.id}>
-                    <TableCell className="font-medium">{entry.table}</TableCell>
-                    <TableCell>
-                      <span className="flex items-center gap-1">
-                        <IconUsers className="size-4" />
-                        {entry.guests}명
-                      </span>
-                    </TableCell>
-                    <TableCell>남 {entry.male} / 여 {entry.female}</TableCell>
-                    <TableCell>{entry.region}</TableCell>
-                    <TableCell>{entry.time}</TableCell>
-                    <TableCell>
-                      <Badge variant="secondary">{entry.staff}</Badge>
-                    </TableCell>
-                  </TableRow>
+            {historyLoading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <Skeleton key={i} className="h-10 w-full" />
                 ))}
-              </TableBody>
-            </Table>
+              </div>
+            ) : historyEntries.length === 0 ? (
+              <div className="py-8 text-center text-muted-foreground">
+                입장 기록이 없습니다
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>테이블</TableHead>
+                    <TableHead>인원</TableHead>
+                    <TableHead>성비</TableHead>
+                    <TableHead>지역</TableHead>
+                    <TableHead>입장시간</TableHead>
+                    <TableHead>사용시간</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {historyEntries.map((entry) => (
+                    <TableRow key={entry.id}>
+                      <TableCell className="font-medium">{entry.name}</TableCell>
+                      <TableCell>
+                        <span className="flex items-center gap-1">
+                          <IconUsers className="size-4" />
+                          {entry.guestCount}명
+                        </span>
+                      </TableCell>
+                      <TableCell>남 {entry.maleCount} / 여 {entry.femaleCount}</TableCell>
+                      <TableCell>{entry.location || "-"}</TableCell>
+                      <TableCell>
+                        <span className="flex items-center gap-1">
+                          <IconClock className="size-3.5" />
+                          {formatTime(entry.createdAt)}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        {formatDuration(entry.createdAt, entry.deletedAt)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+            {historyData && historyData.totalCount > limit && (
+              <div className="flex items-center justify-between pt-4">
+                <p className="text-sm text-muted-foreground">
+                  {historyData.totalCount}건 중 {offset + 1}-{Math.min(offset + limit, historyData.totalCount)}
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setOffset((o) => Math.max(0, o - limit))}
+                    disabled={offset === 0}
+                  >
+                    이전
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    {Math.floor(offset / limit) + 1} / {Math.ceil(historyData.totalCount / limit)}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setOffset((o) => o + limit)}
+                    disabled={!historyData.hasNext}
+                  >
+                    다음
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

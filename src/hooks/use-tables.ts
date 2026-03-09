@@ -4,8 +4,15 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useMemo } from "react"
 import {
   fetchTables,
+  fetchAvailableDevices,
+  fetchTableHistory,
+  setupTableForDevice,
   deleteTable,
   type Table,
+  type AvailableDevice,
+  type SetupTableForDeviceRequest,
+  type TableHistoryRequest,
+  type TableHistoryResponse,
 } from "@/lib/api/tables"
 
 // ================================
@@ -15,6 +22,8 @@ import {
 export const tableKeys = {
   all: ["tables"] as const,
   list: () => [...tableKeys.all, "list"] as const,
+  available: () => [...tableKeys.all, "available"] as const,
+  history: (params?: TableHistoryRequest) => [...tableKeys.all, "history", params] as const,
 }
 
 // ================================
@@ -33,6 +42,18 @@ export function useTables() {
     queryFn: fetchTables,
     staleTime: 1000 * 60 * 5, // 5분 후 stale
     refetchOnWindowFocus: false, // 창 포커스 시 자동 refetch 안 함
+  })
+}
+
+/**
+ * 빈 디바이스 목록 조회 (테이블 미등록)
+ */
+export function useAvailableDevices() {
+  return useQuery<AvailableDevice[], Error>({
+    queryKey: tableKeys.available(),
+    queryFn: fetchAvailableDevices,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   })
 }
 
@@ -57,11 +78,45 @@ export function useTable(tableId: string | null) {
 }
 
 /**
+ * 테이블 입장 설정 (프론트/스태프용)
+ * POST /tables/setup/{deviceId}
+ * 성공 후 available 캐시 invalidate
+ */
+export function useSetupTable() {
+  const queryClient = useQueryClient()
+  return useMutation<Table, Error, SetupTableForDeviceRequest>({
+    mutationFn: setupTableForDevice,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: tableKeys.available() })
+    },
+  })
+}
+
+/**
  * 테이블 삭제 (관리자/스태프용)
  * 성공 후 백엔드에서 TABLE_REMOVED delta 발행 → 캐시 자동 업데이트
  */
 export function useDeleteTable() {
+  const queryClient = useQueryClient()
   return useMutation<void, Error, string>({
     mutationFn: deleteTable,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: tableKeys.available() })
+    },
+  })
+}
+
+/**
+ * 입장 기록 조회
+ * POST /tables/history
+ * - 페이지 진입 시 자동 refetch (staleTime: 0)
+ * - refetch 함수로 수동 리프레시 가능
+ */
+export function useTableHistory(params: TableHistoryRequest) {
+  return useQuery<TableHistoryResponse, Error>({
+    queryKey: tableKeys.history(params),
+    queryFn: () => fetchTableHistory(params),
+    staleTime: 0,
+    refetchOnMount: "always",
   })
 }
