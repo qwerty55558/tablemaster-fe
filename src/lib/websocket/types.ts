@@ -42,16 +42,18 @@ export enum TableMessageType {
 export interface TableData {
   id: string
   name: string
-  status: "OCCUPIED" | "EMPTY" | "RESERVED" | "INACTIVE"
+  deviceName?: string
+  status: "AVAILABLE" | "OCCUPIED" | "RESERVED" | "CHATTING" | "INACTIVE" | "DELETED"
   guestCount: number
   maleCount?: number
   femaleCount?: number
   location: string
   isChatting: boolean
+  createdAt?: string
   updatedAt?: string
 }
 
-// WebSocket 테이블 메시지 (delta only)
+// WebSocket 테이블 메시지
 export interface TableMessage {
   type: TableMessageType
   data?: TableData          // TABLE_ADDED, TABLE_UPDATED용
