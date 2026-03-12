@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { Suspense, useEffect, useMemo, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -115,6 +115,14 @@ type SortOrder = "desc" | "asc"
 // ================================
 
 export default function EntryPage() {
+  return (
+    <Suspense>
+      <EntryPageContent />
+    </Suspense>
+  )
+}
+
+function EntryPageContent() {
   const searchParams = useSearchParams()
   const preselectedDeviceId = searchParams.get("deviceId")
 
@@ -449,7 +457,8 @@ export default function EntryPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>테이블</TableHead>
+                    <TableHead>디바이스명</TableHead>
+                    <TableHead>테이블명</TableHead>
                     <TableHead>인원</TableHead>
                     <TableHead>성비</TableHead>
                     <TableHead>지역</TableHead>
@@ -460,7 +469,8 @@ export default function EntryPage() {
                 <TableBody>
                   {historyEntries.map((entry) => (
                     <TableRow key={entry.id}>
-                      <TableCell className="font-medium">{entry.name}</TableCell>
+                      <TableCell className="font-medium">{entry.deviceName}</TableCell>
+                      <TableCell>{entry.name}</TableCell>
                       <TableCell>
                         <span className="flex items-center gap-1">
                           <IconUsers className="size-4" />
