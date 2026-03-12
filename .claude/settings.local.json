@@ -27,7 +27,11 @@
       "Bash(gh auth:*)",
       "Bash(docker:*)",
       "mcp__swagger__get-api-info",
-      "mcp__swagger__get-api-doc"
+      "mcp__swagger__get-api-doc",
+      "Bash(grep -r \"입장 기록\\\\|entry\\\\|history\\\\|히스토리\" /Users/personal-ai/Projects/personal/tableProject/fe/src/lib/i18n --include=\"*.ts\" --include=\"*.json\" -A 2 -B 2 2>/dev/null | head -50)",
+      "Bash(npx next:*)",
+      "Bash(npx eslint:*)",
+      "Bash(npm install:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

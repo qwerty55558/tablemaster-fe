@@ -100,6 +100,7 @@ export interface SetupTableForDeviceRequest {
 export interface TableHistoryEntry {
   id: number
   deviceId: string
+  deviceName: string
   name: string
   location: string
   guestCount: number
