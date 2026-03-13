@@ -31,7 +31,15 @@
       "Bash(grep -r \"입장 기록\\\\|entry\\\\|history\\\\|히스토리\" /Users/personal-ai/Projects/personal/tableProject/fe/src/lib/i18n --include=\"*.ts\" --include=\"*.json\" -A 2 -B 2 2>/dev/null | head -50)",
       "Bash(npx next:*)",
       "Bash(npx eslint:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(colima status:*)",
+      "Bash(sysctl -n hw.memsize)",
+      "Bash(colima list:*)",
+      "Bash(colima stop:*)",
+      "Bash(colima start:*)",
+      "Bash(rm /Users/personal-ai/.claude/skills/deploy-fe.md && rmdir /Users/personal-ai/.claude/skills/ 2>/dev/null; echo \"done\")",
+      "Bash(docker pull:*)",
+      "Bash(grep -q '\"zod\"' /Users/personal-ai/Projects/personal/tableProject/fe/package.json && echo \"installed\" || echo \"not installed\")"
     ]
   },
   "enableAllProjectMcpServers": true,

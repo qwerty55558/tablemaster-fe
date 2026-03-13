@@ -14,8 +14,8 @@ interface AuthSessionProviderProps {
 export function AuthSessionProvider({ children }: AuthSessionProviderProps) {
   return (
     <SessionProvider
-      refetchInterval={0} // 자동 polling 비활성화
-      refetchOnWindowFocus={false} // 창 포커스 시 refetch 비활성화
+      refetchInterval={4 * 60} // 4분마다 세션 체크 (토큰 만료 5분 전 갱신)
+      refetchOnWindowFocus={true} // 탭 전환 시 세션 체크
     >
       {children}
     </SessionProvider>

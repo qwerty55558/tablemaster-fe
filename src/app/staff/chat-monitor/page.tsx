@@ -43,6 +43,7 @@ import { Separator } from "@/components/ui/separator"
 import {
   type ChatMessage,
   type ChatRoom,
+  type SanctionType,
   fetchChatMessages,
   fetchChatRooms,
   markChatAsRead,
@@ -51,6 +52,12 @@ import {
   toggleMute,
 } from "@/lib/api/chat"
 import { cn } from "@/lib/utils"
+import { z } from "zod"
+
+const sanctionSchema = z.object({
+  type: z.enum(["WARNING", "MUTE", "BAN"]),
+  reason: z.string().max(200, "사유는 200자 이내로 입력하세요").optional(),
+})
 
 function formatTime(dateString: string) {
   const date = new Date(dateString)
@@ -64,7 +71,9 @@ export default function ChatMonitorPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [filterType, setFilterType] = useState<string>("all")
   const [restrictDialogOpen, setRestrictDialogOpen] = useState(false)
-  const [restrictType, setRestrictType] = useState<string>("warning")
+  const [restrictType, setRestrictType] = useState<SanctionType>("WARNING")
+  const [restrictReason, setRestrictReason] = useState("")
+  const [restrictError, setRestrictError] = useState("")
   const [loading, setLoading] = useState(true)
   const [messagesLoading, setMessagesLoading] = useState(false)
   const [notifyDialogOpen, setNotifyDialogOpen] = useState(false)
@@ -97,12 +106,17 @@ export default function ChatMonitorPage() {
   const loadMessages = useCallback(async (roomId: number) => {
     try {
       setMessagesLoading(true)
-      const data = await fetchChatMessages(roomId, { size: 50 })
+      // 먼저 총 페이지 수를 확인하고, 마지막 페이지(최신 메시지)를 로드
+      const firstFetch = await fetchChatMessages(roomId, { size: 50 })
+      let data = firstFetch
+      if (firstFetch.totalPages > 1) {
+        data = await fetchChatMessages(roomId, { page: firstFetch.totalPages - 1, size: 50 })
+      }
       setMessages(data.content || [])
       // 마지막 메시지 읽음 처리 후 목록 갱신
       if (data.content && data.content.length > 0) {
-        const lastMsg = data.content[data.content.length - 1]
-        markChatAsRead(roomId, lastMsg.id)
+        const maxMessageId = Math.max(...data.content.map((m) => m.id))
+        markChatAsRead(roomId, maxMessageId)
           .then(() => {
             // 읽음 처리 성공 시 rooms 목록 갱신하여 unreadCount 반영
             setRooms((prev) =>
@@ -131,9 +145,21 @@ export default function ChatMonitorPage() {
   // 제재 적용
   const handleRestrict = async () => {
     if (!selectedRoom) return
+    const parsed = sanctionSchema.safeParse({
+      type: restrictType,
+      reason: restrictReason || undefined,
+    })
+    if (!parsed.success) {
+      setRestrictError(parsed.error.issues[0].message)
+      return
+    }
     try {
-      await sanctionChatRoom(selectedRoom.id)
+      setRestrictError("")
+      await sanctionChatRoom(selectedRoom.id, parsed.data)
       setRestrictDialogOpen(false)
+      setRestrictReason("")
+      setSelectedRoom(null)
+      setMessages([])
       loadRooms()
     } catch (err) {
       console.error("제재 적용 실패:", err)
@@ -528,20 +554,28 @@ export default function ChatMonitorPage() {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>제재 유형</Label>
-              <Select value={restrictType} onValueChange={setRestrictType}>
+              <Select value={restrictType} onValueChange={(v) => setRestrictType(v as SanctionType)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="warning">경고 메시지 전송</SelectItem>
-                  <SelectItem value="mute">10분간 채팅 제한</SelectItem>
-                  <SelectItem value="ban">채팅 금지</SelectItem>
+                  <SelectItem value="WARNING">경고 메시지 전송</SelectItem>
+                  <SelectItem value="MUTE">채팅 음소거</SelectItem>
+                  <SelectItem value="BAN">채팅 금지</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
               <Label>사유 (선택)</Label>
-              <Input placeholder="제재 사유를 입력하세요" />
+              <Input
+                placeholder="제재 사유를 입력하세요"
+                value={restrictReason}
+                onChange={(e) => setRestrictReason(e.target.value)}
+                maxLength={200}
+              />
+              {restrictError && (
+                <p className="text-xs text-destructive">{restrictError}</p>
+              )}
             </div>
             <div className="flex gap-2">
               <Button

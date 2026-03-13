@@ -189,16 +189,25 @@ export async function fetchChatMessages(
   return handleResponse<ChatMessagesResponse>(response)
 }
 
+export type SanctionType = "WARNING" | "MUTE" | "BAN"
+
 /**
  * 채팅방 제재
  * POST /api/v1/staff/chat/rooms/{id}/sanction
  */
-export async function sanctionChatRoom(roomId: number): Promise<void> {
+export async function sanctionChatRoom(
+  roomId: number,
+  data: { type: SanctionType; reason?: string }
+): Promise<void> {
   const headers = await getAuthHeaders()
 
   const response = await fetch(
     `${API_BASE_URL}/api/v1/staff/chat/rooms/${roomId}/sanction`,
-    { method: "POST", headers }
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify(data),
+    }
   )
 
   return handleResponse<void>(response)
