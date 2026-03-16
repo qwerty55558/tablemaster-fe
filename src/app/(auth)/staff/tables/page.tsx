@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react"
 import {
+  IconBan,
   IconFilter,
   IconMessageCircle,
   IconMessageOff,
@@ -12,6 +13,7 @@ import {
   IconAlertCircle,
   IconLoader2,
   IconRefresh,
+  IconVolumeOff,
 } from "@tabler/icons-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -53,6 +55,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 import { useTables, useDeleteTable } from "@/hooks/use-tables"
 import type { Table as TableType } from "@/lib/api/tables"
+import { toggleMute, liftSanction } from "@/lib/api/chat"
 import { toast } from "sonner"
 
 const statusLabels = {
@@ -121,6 +124,28 @@ export default function TablesPage() {
   const handleOpenDetail = (table: TableType) => {
     setSelectedTableId(table.tableId)
     setDetailOpen(true)
+  }
+
+  const handleMuteToggle = async (roomId: number, deviceId: string) => {
+    try {
+      await toggleMute(roomId, deviceId)
+      refetch()
+      toast.success("음소거 상태가 변경되었습니다")
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "음소거 처리에 실패했습니다"
+      toast.error(message)
+    }
+  }
+
+  const handleLiftSanction = async (roomId: number) => {
+    try {
+      await liftSanction(roomId)
+      refetch()
+      toast.success("제재가 해제되었습니다")
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "제재 해제에 실패했습니다"
+      toast.error(message)
+    }
   }
 
   const handleExit = async () => {
@@ -273,11 +298,25 @@ export default function TablesPage() {
                           )}
                         </TableCell>
                         <TableCell>
-                          {table.chatEnabled ? (
-                            <IconMessageCircle className="size-4 text-green-600" />
-                          ) : (
-                            <IconMessageOff className="size-4 text-muted-foreground" />
-                          )}
+                          <div className="flex items-center gap-1.5">
+                            {table.chatEnabled ? (
+                              <IconMessageCircle className="size-4 text-green-600" />
+                            ) : (
+                              <IconMessageOff className="size-4 text-muted-foreground" />
+                            )}
+                            {table.chatSanctionType && (
+                              <Badge variant="destructive" className="text-[10px] h-4 px-1">
+                                {table.chatSanctionType === "WARNING"
+                                  ? "경고"
+                                  : table.chatSanctionType === "MUTE"
+                                    ? "음소거"
+                                    : "금지"}
+                              </Badge>
+                            )}
+                            {table.isChatMuted && !table.chatSanctionType && (
+                              <IconVolumeOff className="size-4 text-amber-500" />
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="text-right">
                           <Button
@@ -355,13 +394,69 @@ export default function TablesPage() {
 
                   <Separator />
 
-                  {/* 채팅 설정 */}
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label>채팅 허용</Label>
-                      <p className="text-xs text-muted-foreground">다른 테이블과 채팅 가능</p>
+                  {/* 채팅 상태 */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label>채팅 허용</Label>
+                        <p className="text-xs text-muted-foreground">다른 테이블과 채팅 가능</p>
+                      </div>
+                      <Switch checked={selectedTable.chatEnabled} />
                     </div>
-                    <Switch checked={selectedTable.chatEnabled} />
+                    {selectedTable.chatSanctionType && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">채팅 제재</span>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="destructive" className="text-xs">
+                            <IconBan className="size-3 mr-1" />
+                            {selectedTable.chatSanctionType === "WARNING"
+                              ? "경고"
+                              : selectedTable.chatSanctionType === "MUTE"
+                                ? "음소거"
+                                : "채팅 금지"}
+                          </Badge>
+                          {selectedTable.chatSanctionExpiresAt && (
+                            <span className="text-xs text-muted-foreground">
+                              {formatTime(selectedTable.chatSanctionExpiresAt)} 만료
+                            </span>
+                          )}
+                          {!selectedTable.chatSanctionExpiresAt && (
+                            <span className="text-xs text-muted-foreground">영구</span>
+                          )}
+                          {selectedTable.chatRoomId && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6 text-xs text-destructive"
+                              onClick={() => handleLiftSanction(selectedTable.chatRoomId!)}
+                            >
+                              해제
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {selectedTable.isChatMuted && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">개별 음소거</span>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="secondary" className="text-xs">
+                            <IconVolumeOff className="size-3 mr-1" />
+                            음소거됨
+                          </Badge>
+                          {selectedTable.chatRoomId && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6 text-xs"
+                              onClick={() => handleMuteToggle(selectedTable.chatRoomId!, selectedTable.tableId)}
+                            >
+                              해제
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <Separator />

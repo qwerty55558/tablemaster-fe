@@ -13,6 +13,8 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8080"
 
 export type ChatRoomStatus = "ACTIVE" | "CLOSED" | "SANCTIONED"
 
+export type SanctionType = "WARNING" | "MUTE" | "BAN"
+
 export type MessageType = "MESSAGE" | "JOIN" | "LEAVE" | "GIFT" | "SYSTEM"
 
 export interface ChatParticipant {
@@ -31,6 +33,9 @@ export interface ChatRoom {
   reportCount: number
   participants: ChatParticipant[]
   unreadCount: number
+  sanctionType?: SanctionType
+  sanctionReason?: string
+  sanctionExpiresAt?: string | null
 }
 
 export interface ChatMessage {
@@ -189,15 +194,13 @@ export async function fetchChatMessages(
   return handleResponse<ChatMessagesResponse>(response)
 }
 
-export type SanctionType = "WARNING" | "MUTE" | "BAN"
-
 /**
  * 채팅방 제재
  * POST /api/v1/staff/chat/rooms/{id}/sanction
  */
 export async function sanctionChatRoom(
   roomId: number,
-  data: { type: SanctionType; reason?: string }
+  data: { type: SanctionType; reason?: string; durationMinutes?: number }
 ): Promise<void> {
   const headers = await getAuthHeaders()
 
@@ -207,6 +210,24 @@ export async function sanctionChatRoom(
       method: "POST",
       headers,
       body: JSON.stringify(data),
+    }
+  )
+
+  return handleResponse<void>(response)
+}
+
+/**
+ * 제재 해제
+ * DELETE /api/v1/staff/chat/rooms/{id}/sanction
+ */
+export async function liftSanction(roomId: number): Promise<void> {
+  const headers = await getAuthHeaders()
+
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/staff/chat/rooms/${roomId}/sanction`,
+    {
+      method: "DELETE",
+      headers,
     }
   )
 

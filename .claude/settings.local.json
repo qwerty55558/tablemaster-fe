@@ -39,7 +39,15 @@
       "Bash(colima start:*)",
       "Bash(rm /Users/personal-ai/.claude/skills/deploy-fe.md && rmdir /Users/personal-ai/.claude/skills/ 2>/dev/null; echo \"done\")",
       "Bash(docker pull:*)",
-      "Bash(grep -q '\"zod\"' /Users/personal-ai/Projects/personal/tableProject/fe/package.json && echo \"installed\" || echo \"not installed\")"
+      "Bash(grep -q '\"zod\"' /Users/personal-ai/Projects/personal/tableProject/fe/package.json && echo \"installed\" || echo \"not installed\")",
+      "Bash(cd:*)",
+      "Bash(mv login:*)",
+      "Bash(rm:*)",
+      "mcp__browser__browser_navigate",
+      "mcp__browser__browser_screenshot",
+      "mcp__browser__browser_fill",
+      "mcp__browser__browser_click",
+      "mcp__browser__browser_wait"
     ]
   },
   "enableAllProjectMcpServers": true,

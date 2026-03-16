@@ -9,6 +9,56 @@ export enum NotificationType {
   DEVICE_DISCONNECTED = "DEVICE_DISCONNECTED",
   DEVICE_DELETED = "DEVICE_DELETED",
   SYSTEM_ALERT = "SYSTEM_ALERT",
+  ROOM_SANCTION_LIFTED = "ROOM_SANCTION_LIFTED",
+  // 채팅 모니터 실시간 이벤트
+  CHAT_NEW_MESSAGE = "CHAT_NEW_MESSAGE",
+  CHAT_ROOM_CREATED = "CHAT_ROOM_CREATED",
+  CHAT_ROOM_CLOSED = "CHAT_ROOM_CLOSED",
+  CHAT_ROOM_UPDATED = "CHAT_ROOM_UPDATED",
+}
+
+export interface RoomSanctionLiftedMessage {
+  type: NotificationType.ROOM_SANCTION_LIFTED
+  roomId: number
+  timestamp: string
+}
+
+// 채팅 모니터 WebSocket 메시지 타입
+export interface ChatMonitorMessage {
+  type:
+    | NotificationType.CHAT_NEW_MESSAGE
+    | NotificationType.CHAT_ROOM_CREATED
+    | NotificationType.CHAT_ROOM_CLOSED
+    | NotificationType.CHAT_ROOM_UPDATED
+    | NotificationType.ROOM_SANCTION_LIFTED
+  roomId: number
+  timestamp: string
+  // CHAT_NEW_MESSAGE일 때 메시지 데이터 (백엔드 필드명 기준)
+  messageId?: number
+  senderDeviceId?: string
+  senderTableName?: string
+  content?: string
+  messageType?: string
+  createdAt?: string
+  // CHAT_ROOM_CREATED / CHAT_ROOM_UPDATED일 때 방 데이터
+  room?: {
+    id: number
+    status: string
+    startedAt: string
+    closedAt: string | null
+    totalMessageCount: number
+    giftCount: number
+    reportCount: number
+    participants: {
+      deviceId: string
+      tableName: string
+      isMuted: boolean
+    }[]
+    unreadCount: number
+    sanctionType?: string
+    sanctionReason?: string
+    sanctionExpiresAt?: string | null
+  }
 }
 
 export interface AdminNotification {
@@ -49,6 +99,10 @@ export interface TableData {
   femaleCount?: number
   location: string
   isChatting: boolean
+  chatRoomId?: number | null
+  chatSanctionType?: string | null
+  isChatMuted?: boolean
+  chatSanctionExpiresAt?: string | null
   createdAt?: string
   updatedAt?: string
 }

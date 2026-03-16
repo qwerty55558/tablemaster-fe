@@ -3,6 +3,7 @@
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import {
+  IconBan,
   IconMessageCircle,
   IconUsers,
   IconRefresh,
@@ -13,6 +14,7 @@ import {
   IconGenderFemale,
   IconDevices,
   IconUserPlus,
+  IconVolumeOff,
 } from "@tabler/icons-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -35,6 +37,7 @@ import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
 import { useTables, useDeleteTable, tableKeys } from "@/hooks/use-tables"
 import { fetchTables } from "@/lib/api/tables"
+import { toggleMute, liftSanction } from "@/lib/api/chat"
 import { useDevices, adminKeys } from "@/hooks/use-admin"
 import { useQueryClient } from "@tanstack/react-query"
 import type { Table } from "@/lib/api/tables"
@@ -106,6 +109,8 @@ interface TableDetailDialogProps {
   onOpenChange: (open: boolean) => void
   onDelete: (tableId: string) => void
   isDeleting: boolean
+  onMuteToggle: (roomId: number, deviceId: string) => void
+  onLiftSanction: (roomId: number) => void
 }
 
 function TableDetailDialog({
@@ -114,6 +119,8 @@ function TableDetailDialog({
   onOpenChange,
   onDelete,
   isDeleting,
+  onMuteToggle,
+  onLiftSanction,
 }: TableDetailDialogProps) {
   const router = useRouter()
   if (!deviceTable) return null
@@ -220,9 +227,57 @@ function TableDetailDialog({
                   <IconMessageCircle className="h-3 w-3" />
                   채팅 상태
                 </p>
-                <Badge variant={table.chatEnabled ? "default" : "secondary"}>
-                  {table.chatEnabled ? "채팅중" : "채팅 없음"}
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant={table.chatEnabled ? "default" : "secondary"}>
+                    {table.chatEnabled ? "채팅중" : "채팅 없음"}
+                  </Badge>
+                  {table.chatSanctionType && (
+                    <Badge variant="destructive" className="text-xs">
+                      {table.chatSanctionType === "WARNING"
+                        ? "경고"
+                        : table.chatSanctionType === "MUTE"
+                          ? "음소거"
+                          : "채팅 금지"}
+                    </Badge>
+                  )}
+                  {table.isChatMuted && !table.chatSanctionType && (
+                    <Badge variant="secondary" className="text-xs">
+                      <IconVolumeOff className="size-3 mr-1" />
+                      음소거
+                    </Badge>
+                  )}
+                </div>
+                {table.chatSanctionExpiresAt && (
+                  <p className="text-xs text-muted-foreground">
+                    만료: {formatTime(table.chatSanctionExpiresAt)}
+                  </p>
+                )}
+                {table.chatRoomId && (table.isChatMuted || table.chatSanctionType) && (
+                  <div className="flex gap-2 mt-2">
+                    {table.isChatMuted && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        onClick={() => onMuteToggle(table.chatRoomId!, deviceTable.deviceId)}
+                      >
+                        <IconVolumeOff className="size-3 mr-1" />
+                        음소거 해제
+                      </Button>
+                    )}
+                    {table.chatSanctionType && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs text-destructive"
+                        onClick={() => onLiftSanction(table.chatRoomId!)}
+                      >
+                        <IconBan className="size-3 mr-1" />
+                        제재 해제
+                      </Button>
+                    )}
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -315,6 +370,31 @@ export function TableOverview() {
   const handleDeviceTableClick = (deviceTable: DeviceTableInfo) => {
     setSelectedDeviceId(deviceTable.deviceId)
     setDialogOpen(true)
+  }
+
+  const handleMuteToggle = async (roomId: number, deviceId: string) => {
+    try {
+      await toggleMute(roomId, deviceId)
+      // 테이블 캐시 갱신
+      const tablesData = await fetchTables()
+      queryClient.setQueryData(tableKeys.list(), tablesData)
+      toast.success("음소거 상태가 변경되었습니다")
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "음소거 처리에 실패했습니다"
+      toast.error(message)
+    }
+  }
+
+  const handleLiftSanction = async (roomId: number) => {
+    try {
+      await liftSanction(roomId)
+      const tablesData = await fetchTables()
+      queryClient.setQueryData(tableKeys.list(), tablesData)
+      toast.success("제재가 해제되었습니다")
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "제재 해제에 실패했습니다"
+      toast.error(message)
+    }
   }
 
   const handleDelete = async (tableId: string) => {
@@ -428,6 +508,16 @@ export function TableOverview() {
                           <IconMessageCircle className="size-3" />
                         </span>
                       )}
+                      {deviceTable.table.chatSanctionType && (
+                        <span className="flex items-center gap-0.5 text-red-500">
+                          <IconBan className="size-3" />
+                        </span>
+                      )}
+                      {deviceTable.table.isChatMuted && (
+                        <span className="flex items-center gap-0.5 text-amber-500">
+                          <IconVolumeOff className="size-3" />
+                        </span>
+                      )}
                     </div>
                   )}
 
@@ -460,6 +550,14 @@ export function TableOverview() {
               <IconMessageCircle className="size-3 text-green-600" />
               <span>채팅중</span>
             </div>
+            <div className="flex items-center gap-1.5">
+              <IconBan className="size-3 text-red-500" />
+              <span>제재</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <IconVolumeOff className="size-3 text-amber-500" />
+              <span>음소거</span>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -471,6 +569,8 @@ export function TableOverview() {
         onOpenChange={setDialogOpen}
         onDelete={handleDelete}
         isDeleting={deleteTable.isPending}
+        onMuteToggle={handleMuteToggle}
+        onLiftSanction={handleLiftSanction}
       />
     </>
   )

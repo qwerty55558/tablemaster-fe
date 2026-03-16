@@ -13,6 +13,8 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8080"
 
 export type TableStatus = "active" | "empty" | "reserved" | "inactive"
 
+export type ChatSanctionType = "WARNING" | "MUTE" | "BAN"
+
 export interface Table {
   tableId: string
   tableName: string
@@ -23,6 +25,10 @@ export interface Table {
   femaleCount: number
   location: string
   chatEnabled: boolean
+  chatRoomId?: number | null
+  chatSanctionType?: ChatSanctionType | null
+  isChatMuted?: boolean
+  chatSanctionExpiresAt?: string | null
   entryTime?: string
   updatedAt?: string
 }
@@ -38,6 +44,10 @@ interface TableApiResponse {
   femaleCount?: number
   location: string
   isChatting: boolean
+  chatRoomId?: number | null
+  chatSanctionType?: ChatSanctionType | null
+  isChatMuted?: boolean
+  chatSanctionExpiresAt?: string | null
   createdAt?: string
   updatedAt?: string
 }
@@ -71,7 +81,11 @@ function mapTableResponse(data: TableApiResponse): Table {
     maleCount: data.maleCount ?? 0,
     femaleCount: data.femaleCount ?? 0,
     location: data.location,
-    chatEnabled: data.isChatting,
+    chatEnabled: data.isChatting || !!data.chatRoomId,
+    chatRoomId: data.chatRoomId ?? null,
+    chatSanctionType: data.chatSanctionType ?? null,
+    isChatMuted: data.isChatMuted ?? false,
+    chatSanctionExpiresAt: data.chatSanctionExpiresAt ?? null,
     entryTime: data.createdAt,
     updatedAt: data.updatedAt,
   }

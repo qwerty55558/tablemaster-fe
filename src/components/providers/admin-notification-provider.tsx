@@ -11,7 +11,7 @@ import {
 import { useSession } from "next-auth/react"
 import { useQueryClient } from "@tanstack/react-query"
 import type { Client } from "@stomp/stompjs"
-import { createStompClient, publishToTable, ADMIN_TOPIC, TABLES_TOPIC } from "@/lib/websocket/stomp-client"
+import { createStompClient, publishToTable, ADMIN_TOPIC, TABLES_TOPIC, STAFF_CHAT_MONITOR_TOPIC } from "@/lib/websocket/stomp-client"
 import {
   NotificationType,
   type AdminNotification,
@@ -20,6 +20,7 @@ import {
   TableMessageType,
   type TableMessage,
   type TableData,
+  type ChatMonitorMessage,
 } from "@/lib/websocket/types"
 import { adminKeys } from "@/hooks/use-admin"
 import { tableKeys } from "@/hooks/use-tables"
@@ -91,9 +92,11 @@ function getDefaultMessage(type: string, data?: Record<string, unknown>): string
 function mapTableDataToTable(data: TableData): Table {
   const statusMap: Record<string, Table["status"]> = {
     OCCUPIED: "active",
-    EMPTY: "empty",
+    CHATTING: "active",
+    AVAILABLE: "empty",
     RESERVED: "reserved",
     INACTIVE: "inactive",
+    DELETED: "inactive",
   }
   return {
     tableId: data.id,
@@ -104,7 +107,11 @@ function mapTableDataToTable(data: TableData): Table {
     maleCount: data.maleCount ?? 0,
     femaleCount: data.femaleCount ?? 0,
     location: data.location,
-    chatEnabled: data.isChatting,
+    chatEnabled: data.isChatting || !!data.chatRoomId,
+    chatRoomId: data.chatRoomId ?? null,
+    chatSanctionType: (data.chatSanctionType as Table["chatSanctionType"]) ?? null,
+    isChatMuted: data.isChatMuted ?? false,
+    chatSanctionExpiresAt: data.chatSanctionExpiresAt ?? null,
     entryTime: data.createdAt,
     updatedAt: data.updatedAt,
   }
@@ -236,9 +243,14 @@ export function AdminNotificationProvider({
         case TableMessageType.TABLE_ADDED:
           if (message.data) {
             const newTable = mapTableDataToTable(message.data)
-            queryClient.setQueryData<Table[]>(tableKeys.list(), (old) =>
-              old ? [...old, newTable] : [newTable]
-            )
+            queryClient.setQueryData<Table[]>(tableKeys.list(), (old) => {
+              if (!old) return [newTable]
+              // 중복 방지: 이미 있으면 업데이트
+              if (old.some((t) => t.tableId === newTable.tableId)) {
+                return old.map((t) => t.tableId === newTable.tableId ? newTable : t)
+              }
+              return [...old, newTable]
+            })
             console.log("[WebSocket] Table added:", newTable.tableId)
           }
           break
@@ -326,6 +338,27 @@ export function AdminNotificationProvider({
             handleTableMessage(tableMessage)
           } catch (e) {
             console.error("[WebSocket] Failed to parse table message:", message.body, e)
+          }
+        })
+
+        // 채팅 모니터 토픽 (Admin/Staff 공용)
+        console.log("[WebSocket] Subscribing to:", STAFF_CHAT_MONITOR_TOPIC)
+        client.subscribe(STAFF_CHAT_MONITOR_TOPIC, (message) => {
+          console.log("[WebSocket] Chat monitor message received:", message.body)
+          try {
+            const parsed = JSON.parse(message.body) as ChatMonitorMessage
+            // 모든 채팅 모니터 이벤트를 통합 이벤트로 dispatch
+            window.dispatchEvent(
+              new CustomEvent("chat-monitor-event", { detail: parsed })
+            )
+            // 하위호환: 제재 해제 이벤트도 기존 이벤트명으로 dispatch
+            if (parsed.type === NotificationType.ROOM_SANCTION_LIFTED) {
+              window.dispatchEvent(
+                new CustomEvent("room-sanction-lifted", { detail: parsed })
+              )
+            }
+          } catch (e) {
+            console.error("[WebSocket] Failed to parse chat monitor message:", message.body, e)
           }
         })
       },
