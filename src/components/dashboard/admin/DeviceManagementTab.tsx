@@ -37,6 +37,7 @@ import {
   adminKeys,
 } from "@/hooks/use-admin"
 import { useTables } from "@/hooks/use-tables"
+import { getApiErrorMessage } from "@/lib/api/error-utils"
 import type { Device } from "@/lib/api/admin"
 import { toast } from "sonner"
 
@@ -69,7 +70,7 @@ export function DeviceManagementTab() {
       await deleteDevice.mutateAsync(deleteTarget.deviceId)
       toast.success("디바이스가 삭제되었습니다")
     } catch (error) {
-      const message = error instanceof Error ? error.message : "삭제에 실패했습니다"
+      const message = getApiErrorMessage(error, "삭제에 실패했습니다")
       toast.error(message)
     } finally {
       setDeleteTarget(null)

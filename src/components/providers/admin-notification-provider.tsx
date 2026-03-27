@@ -11,7 +11,7 @@ import {
 import { useSession } from "next-auth/react"
 import { useQueryClient } from "@tanstack/react-query"
 import type { Client } from "@stomp/stompjs"
-import { createStompClient, publishToTable, ADMIN_TOPIC, TABLES_TOPIC, STAFF_CHAT_MONITOR_TOPIC } from "@/lib/websocket/stomp-client"
+import { createStompClient, publishToTable, ADMIN_TOPIC, TABLES_TOPIC, STAFF_CHAT_MONITOR_TOPIC, USER_CHAT_QUEUE } from "@/lib/websocket/stomp-client"
 import {
   NotificationType,
   type AdminNotification,
@@ -33,6 +33,7 @@ interface NotificationContextValue {
   isShaking: boolean
   connectionStatus: WebSocketConnectionStatus
   markAllAsRead: () => void
+  markNotificationAsRead: (id: number) => void
   removeNotification: (id: number) => void
   clearAllNotifications: () => void
   publishTableReset: (tableId: string) => boolean
@@ -50,6 +51,7 @@ export function useNotifications(): NotificationContextValue {
       isShaking: false,
       connectionStatus: "disconnected",
       markAllAsRead: () => {},
+      markNotificationAsRead: () => {},
       removeNotification: () => {},
       clearAllNotifications: () => {},
       publishTableReset: () => false,
@@ -62,6 +64,38 @@ let notificationIdCounter = 1
 
 function formatTimeAgo(): string {
   return "방금 전"
+}
+
+function getNotificationHref(
+  type: string,
+  data: Record<string, unknown>,
+  isAdmin: boolean
+): string | null {
+  const roomId = data.roomId
+  const baseDashboard = isAdmin ? "/admin/dashboard" : "/staff/dashboard"
+
+  switch (type) {
+    case NotificationType.DEVICE_REGISTRATION_REQUEST:
+    case NotificationType.DEVICE_REGISTRATION_EXPIRED:
+    case NotificationType.DEVICE_CONNECTED:
+    case NotificationType.DEVICE_DISCONNECTED:
+    case NotificationType.DEVICE_DELETED:
+      return "/admin/dashboard"
+    case NotificationType.CHAT_NEW_MESSAGE:
+    case NotificationType.CHAT_GIFT_SENT:
+    case NotificationType.CHAT_GIFT_RECEIVED:
+    case NotificationType.CHAT_ROOM_CREATED:
+    case NotificationType.CHAT_ROOM_CLOSED:
+    case NotificationType.CHAT_ROOM_UPDATED:
+    case NotificationType.ROOM_SANCTION_LIFTED:
+      return typeof roomId === "number"
+        ? `/staff/chat-monitor?roomId=${roomId}`
+        : "/staff/chat-monitor"
+    case NotificationType.SYSTEM_ALERT:
+      return baseDashboard
+    default:
+      return baseDashboard
+  }
 }
 
 function getDefaultMessage(type: string, data?: Record<string, unknown>): string {
@@ -83,6 +117,20 @@ function getDefaultMessage(type: string, data?: Record<string, unknown>): string
       return deviceId ? `디바이스 삭제됨: ${deviceId}` : "디바이스 삭제됨"
     case NotificationType.SYSTEM_ALERT:
       return "시스템 알림"
+    case NotificationType.CHAT_GIFT_SENT: {
+      const senderTableName = data?.senderTableName as string | undefined
+      const giftType = data?.giftType as string | undefined
+      return senderTableName && giftType
+        ? `${senderTableName}에서 ${giftType} 선물을 보냈습니다`
+        : "선물을 보냈습니다"
+    }
+    case NotificationType.CHAT_GIFT_RECEIVED: {
+      const senderTableName = data?.senderTableName as string | undefined
+      const giftType = data?.giftType as string | undefined
+      return senderTableName && giftType
+        ? `${senderTableName}에게서 ${giftType} 선물을 받았습니다`
+        : "선물을 받았습니다"
+    }
     default:
       return "새로운 알림"
   }
@@ -117,7 +165,10 @@ function mapTableDataToTable(data: TableData): Table {
   }
 }
 
-function mapNotificationToActivity(notification: AdminNotification): Activity {
+function mapNotificationToActivity(
+  notification: AdminNotification,
+  isAdmin: boolean
+): Activity {
   const typeMap: Record<string, Activity["type"]> = {
     [NotificationType.DEVICE_REGISTRATION_REQUEST]: "device",
     [NotificationType.DEVICE_REGISTRATION_EXPIRED]: "device",
@@ -125,6 +176,8 @@ function mapNotificationToActivity(notification: AdminNotification): Activity {
     [NotificationType.DEVICE_DISCONNECTED]: "device",
     [NotificationType.DEVICE_DELETED]: "device",
     [NotificationType.SYSTEM_ALERT]: "warning",
+    [NotificationType.CHAT_GIFT_SENT]: "gift",
+    [NotificationType.CHAT_GIFT_RECEIVED]: "gift",
   }
 
   // deviceId 위치 유연하게 처리 (최상위 or data 안)
@@ -141,6 +194,7 @@ function mapNotificationToActivity(notification: AdminNotification): Activity {
     time: formatTimeAgo(),
     staff: null,
     isNew: true,
+    href: getNotificationHref(notification.type as string, data, isAdmin),
   }
 }
 
@@ -170,7 +224,7 @@ export function AdminNotificationProvider({
 
   const addNotification = useCallback(
     (notification: AdminNotification) => {
-      const activity = mapNotificationToActivity(notification)
+      const activity = mapNotificationToActivity(notification, isAdmin)
       setNotifications((prev) => [activity, ...prev])
 
       // 벨 흔들림 애니메이션
@@ -217,12 +271,18 @@ export function AdminNotificationProvider({
         )
       }
     },
-    [queryClient]
+    [isAdmin, queryClient]
   )
 
   const markAllAsRead = useCallback(() => {
     setNotifications((prev) =>
       prev.map((n) => ({ ...n, isNew: false }))
+    )
+  }, [])
+
+  const markNotificationAsRead = useCallback((id: number) => {
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, isNew: false } : n))
     )
   }, [])
 
@@ -361,6 +421,37 @@ export function AdminNotificationProvider({
             console.error("[WebSocket] Failed to parse chat monitor message:", message.body, e)
           }
         })
+
+        console.log("[WebSocket] Subscribing to:", USER_CHAT_QUEUE)
+        client.subscribe(USER_CHAT_QUEUE, (message) => {
+          console.log("[WebSocket] User chat message received:", message.body)
+          try {
+            const parsed = JSON.parse(message.body) as ChatMonitorMessage
+            if (
+              parsed.type === NotificationType.CHAT_GIFT_SENT ||
+              parsed.type === NotificationType.CHAT_GIFT_RECEIVED
+            ) {
+              addNotification({
+                type: parsed.type,
+                timestamp: parsed.timestamp,
+                data: {
+                  roomId: parsed.roomId,
+                  senderDeviceId: parsed.senderDeviceId,
+                  senderTableName: parsed.senderTableName,
+                  giftType: parsed.giftType,
+                  eventType: parsed.eventType,
+                  messageType: parsed.messageType,
+                },
+              })
+            }
+
+            window.dispatchEvent(
+              new CustomEvent("chat-monitor-event", { detail: parsed })
+            )
+          } catch (e) {
+            console.error("[WebSocket] Failed to parse user chat message:", message.body, e)
+          }
+        })
       },
       onDisconnect: () => {
         console.log("[WebSocket] Disconnected")
@@ -401,15 +492,15 @@ export function AdminNotificationProvider({
     if (status === "authenticated" && canConnect && !hasError && accessToken) {
       // 토큰이 변경되었거나 연결이 없으면 연결
       if (tokenChanged || !clientRef.current?.connected) {
-        connect()
+        queueMicrotask(connect)
       }
     } else if (clientRef.current) {
-      disconnect()
+      queueMicrotask(disconnect)
     }
 
     return () => {
       if (clientRef.current) {
-        disconnect()
+        queueMicrotask(disconnect)
       }
     }
   }, [status, canConnect, hasError, accessToken, connect, disconnect])
@@ -422,6 +513,7 @@ export function AdminNotificationProvider({
         isShaking,
         connectionStatus,
         markAllAsRead,
+        markNotificationAsRead,
         removeNotification,
         clearAllNotifications,
         publishTableReset,

@@ -7,7 +7,6 @@ import type {
 } from "recharts/types/component/Tooltip"
 import type {
   NameType,
-  Payload,
   ValueType,
 } from "recharts/types/component/DefaultTooltipContent"
 import type {

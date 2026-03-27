@@ -1,7 +1,7 @@
 "use client"
 
-import { motion, Variants, useReducedMotion } from "framer-motion"
-import { ReactNode, useState, useEffect } from "react"
+import { motion, Variants } from "framer-motion"
+import { ReactNode, useSyncExternalStore } from "react"
 import { motionConfig } from "./config"
 
 interface StaggerContainerProps {
@@ -20,15 +20,9 @@ interface StaggerItemProps {
   variant?: "fadeIn" | "fadeInUp" | "fadeInDown" | "scaleIn"
 }
 
-const containerVariants: Variants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      staggerChildren: motionConfig.stagger.normal,
-      delayChildren: 0,
-    },
-  },
+const emptySubscribe = () => () => {}
+function useIsMounted() {
+  return useSyncExternalStore(emptySubscribe, () => true, () => false)
 }
 
 const itemVariants: Record<string, Variants> = {
@@ -75,11 +69,7 @@ export function StaggerContainer({
   staggerDelay = motionConfig.stagger.normal,
   delayChildren = 0,
 }: StaggerContainerProps) {
-  const [isMounted, setIsMounted] = useState(false)
-
-  useEffect(() => {
-    setIsMounted(true)
-  }, [])
+  const isMounted = useIsMounted()
 
   return (
     <motion.div
@@ -111,11 +101,7 @@ export function StaggerItem({
   className,
   variant = "fadeInUp",
 }: StaggerItemProps) {
-  const [isMounted, setIsMounted] = useState(false)
-
-  useEffect(() => {
-    setIsMounted(true)
-  }, [])
+  const isMounted = useIsMounted()
 
   // SSR에서는 애니메이션 없이 바로 보여줌
   if (!isMounted) {

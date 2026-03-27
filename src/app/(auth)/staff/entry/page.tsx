@@ -1,4 +1,5 @@
 "use client"
+/* eslint-disable react-hooks/incompatible-library */
 
 import { Suspense, useEffect, useMemo, useState } from "react"
 import { useSearchParams } from "next/navigation"
@@ -467,8 +468,13 @@ function EntryPageContent() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {historyEntries.map((entry) => (
-                    <TableRow key={entry.id}>
+                  {historyEntries.map((entry, index) => (
+                    <TableRow
+                      key={
+                        entry.id ??
+                        `${entry.deviceId}-${entry.createdAt}-${entry.name}-${index}`
+                      }
+                    >
                       <TableCell className="font-medium">{entry.deviceName}</TableCell>
                       <TableCell>{entry.name}</TableCell>
                       <TableCell>

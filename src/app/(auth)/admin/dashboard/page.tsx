@@ -2,8 +2,9 @@
 
 import * as React from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { IconDevices, IconKey } from "@tabler/icons-react"
+import { IconCreditCard, IconDevices, IconKey } from "@tabler/icons-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { BillingManagementTab } from "@/components/dashboard/admin/BillingManagementTab"
 import { DeviceManagementTab } from "@/components/dashboard/admin/DeviceManagementTab"
 import { SecretKeyTab } from "@/components/dashboard/admin/SecretKeyTab"
 import { motionConfig } from "@/components/motion"
@@ -16,7 +17,7 @@ export default function AdminDashboardPage() {
       <div className="px-4 lg:px-6">
         <h1 className="text-2xl font-bold tracking-tight">관리자 대시보드</h1>
         <p className="text-muted-foreground">
-          디바이스 등록 및 시크릿키를 관리합니다.
+          디바이스, 시크릿키, 결제 내역을 관리합니다.
         </p>
       </div>
 
@@ -30,6 +31,10 @@ export default function AdminDashboardPage() {
             <TabsTrigger value="secret" className="gap-2">
               <IconKey className="h-4 w-4" />
               시크릿키
+            </TabsTrigger>
+            <TabsTrigger value="billing" className="gap-2">
+              <IconCreditCard className="h-4 w-4" />
+              결제 내역
             </TabsTrigger>
           </TabsList>
 
@@ -64,6 +69,23 @@ export default function AdminDashboardPage() {
               >
                 <TabsContent value="secret" forceMount>
                   <SecretKeyTab />
+                </TabsContent>
+              </motion.div>
+            )}
+
+            {activeTab === "billing" && (
+              <motion.div
+                key="billing"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{
+                  duration: motionConfig.duration.fast,
+                  ease: motionConfig.ease.default,
+                }}
+              >
+                <TabsContent value="billing" forceMount>
+                  <BillingManagementTab />
                 </TabsContent>
               </motion.div>
             )}

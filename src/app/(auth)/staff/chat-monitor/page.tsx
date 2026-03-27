@@ -188,6 +188,21 @@ export default function ChatMonitorPage() {
           break
         }
 
+        case NotificationType.CHAT_GIFT_SENT:
+        case NotificationType.CHAT_GIFT_RECEIVED: {
+          fetchChatRoom(data.roomId)
+            .then((room) => {
+              setRooms((prev) =>
+                prev.map((r) => (r.id === room.id ? room : r))
+              )
+              if (selectedRoomRef.current?.id === room.id) {
+                setSelectedRoom(room)
+              }
+            })
+            .catch(() => {})
+          break
+        }
+
         case NotificationType.CHAT_ROOM_CREATED: {
           if (data.room) {
             setRooms((prev) => {
@@ -249,7 +264,6 @@ export default function ChatMonitorPage() {
 
     window.addEventListener("chat-monitor-event", handler)
     return () => window.removeEventListener("chat-monitor-event", handler)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // 메시지 로드

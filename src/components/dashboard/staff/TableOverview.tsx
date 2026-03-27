@@ -1,9 +1,12 @@
 "use client"
 
 import * as React from "react"
+import Image from "next/image"
 import { useRouter } from "next/navigation"
+import { useQuery } from "@tanstack/react-query"
 import {
   IconBan,
+  IconCreditCard,
   IconMessageCircle,
   IconUsers,
   IconRefresh,
@@ -37,11 +40,20 @@ import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
 import { useTables, useDeleteTable, tableKeys } from "@/hooks/use-tables"
 import { fetchTables } from "@/lib/api/tables"
+import { getApiErrorMessage } from "@/lib/api/error-utils"
 import { toggleMute, liftSanction } from "@/lib/api/chat"
+import {
+  closeTableBill,
+  fetchCurrentTableBill,
+  fetchTableBills,
+  fetchTableOrders,
+  resolveCommerceImageUrl,
+  type BillLineItem,
+  type BillResponse,
+} from "@/lib/api/commerce"
 import { useDevices, adminKeys } from "@/hooks/use-admin"
 import { useQueryClient } from "@tanstack/react-query"
 import type { Table } from "@/lib/api/tables"
-import type { Device } from "@/lib/api/admin"
 import { toast } from "sonner"
 
 // 디바이스 + 테이블 상태 결합 타입
@@ -103,6 +115,98 @@ function formatDuration(dateString?: string): string {
   return `${mins}분`
 }
 
+function formatDateTime(dateString?: string | null): string {
+  if (!dateString) return "-"
+  return new Intl.DateTimeFormat("ko-KR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(dateString))
+}
+
+function formatAmount(value?: number | null): string {
+  if (typeof value !== "number") return "-"
+  return `${value.toLocaleString("ko-KR")}원`
+}
+
+function getBillId(bill?: BillResponse | null): number | null {
+  if (!bill) return null
+  return bill.billId ?? bill.id ?? null
+}
+
+function getBillStatus(bill?: BillResponse | null): string {
+  return bill?.status ?? "UNKNOWN"
+}
+
+function getBillTotalAmount(bill?: BillResponse | null): number | null {
+  if (!bill) return null
+  return bill.totalAmount ?? bill.amount ?? null
+}
+
+function getBillCreatedAt(bill?: BillResponse | null): string | null {
+  return bill?.createdAt ?? bill?.openedAt ?? null
+}
+
+function getBillClosedAt(bill?: BillResponse | null): string | null {
+  return bill?.closedAt ?? bill?.paidAt ?? null
+}
+
+function getOrderItems(bill?: BillResponse | null): BillLineItem[] {
+  if (!bill) return []
+  return bill.orderItems || bill.orders || []
+}
+
+function getGiftItems(bill?: BillResponse | null): BillLineItem[] {
+  if (!bill) return []
+  return bill.giftOrders || bill.giftItems || bill.gifts || []
+}
+
+function getLineItemName(item: BillLineItem): string {
+  return item.itemName || item.menuName || item.giftName || item.name || "-"
+}
+
+function getLineItemQuantity(item: BillLineItem): number | string {
+  return item.quantity ?? item.count ?? "-"
+}
+
+function getLineItemAmount(item: BillLineItem): number | null {
+  return item.totalPrice ?? item.amount ?? item.price ?? item.unitPrice ?? null
+}
+
+function LineItemRow({ item }: { item: BillLineItem }) {
+  const imageUrl = resolveCommerceImageUrl(item.imageUrl)
+
+  return (
+    <div
+      key={item.id ?? item.orderItemId ?? item.giftId ?? getLineItemName(item)}
+      className="flex items-center justify-between rounded-lg border p-3 text-sm"
+    >
+      <div className="flex items-center gap-3">
+        {imageUrl ? (
+          <Image
+            src={imageUrl}
+            alt={getLineItemName(item)}
+            width={48}
+            height={48}
+            className="h-12 w-12 rounded-md border object-cover"
+            unoptimized
+          />
+        ) : (
+          <div className="h-12 w-12 rounded-md border bg-muted" />
+        )}
+        <div>
+          <p className="font-medium">{getLineItemName(item)}</p>
+          <p className="text-xs text-muted-foreground">수량 {getLineItemQuantity(item)}</p>
+        </div>
+      </div>
+      <span className="font-medium">{formatAmount(getLineItemAmount(item))}</span>
+    </div>
+  )
+}
+
 interface TableDetailDialogProps {
   deviceTable: DeviceTableInfo | null
   open: boolean
@@ -111,6 +215,7 @@ interface TableDetailDialogProps {
   isDeleting: boolean
   onMuteToggle: (roomId: number, deviceId: string) => void
   onLiftSanction: (roomId: number) => void
+  onOpenBilling: () => void
 }
 
 function TableDetailDialog({
@@ -121,6 +226,7 @@ function TableDetailDialog({
   isDeleting,
   onMuteToggle,
   onLiftSanction,
+  onOpenBilling,
 }: TableDetailDialogProps) {
   const router = useRouter()
   if (!deviceTable) return null
@@ -282,8 +388,6 @@ function TableDetailDialog({
             </>
           )}
 
-          <Separator />
-
           {/* 액션 버튼 */}
           <div className="flex justify-end gap-2">
             <Button
@@ -304,13 +408,215 @@ function TableDetailDialog({
               </Button>
             )}
             {deviceTable.status === "active" && (
+              <>
+                <Button onClick={onOpenBilling}>
+                  <IconCreditCard className="mr-2 h-4 w-4" />
+                  결제 보기
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => onDelete(deviceTable.table?.tableId || deviceTable.deviceId)}
+                  disabled={isDeleting}
+                >
+                  {isDeleting ? "삭제 중..." : "테이블 삭제"}
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+interface TableBillingDialogProps {
+  deviceTable: DeviceTableInfo | null
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  isBilling: boolean
+  onCloseBill: (identifier: string) => Promise<boolean>
+}
+
+function TableBillingDialog({
+  deviceTable,
+  open,
+  onOpenChange,
+  isBilling,
+  onCloseBill,
+}: TableBillingDialogProps) {
+  const identifier = deviceTable?.deviceId
+  const hasActiveTable = Boolean(deviceTable?.table)
+  const {
+    data: currentBill,
+    isLoading: billLoading,
+    isFetching: billFetching,
+    refetch: refetchBill,
+  } = useQuery({
+    queryKey: ["staff", "overview", identifier, "bill"],
+    queryFn: () => fetchCurrentTableBill(identifier!),
+    enabled: open && hasActiveTable && !!identifier,
+    staleTime: 0,
+    refetchOnWindowFocus: false,
+  })
+  const {
+    data: currentOrders,
+    isLoading: ordersLoading,
+    refetch: refetchOrders,
+  } = useQuery({
+    queryKey: ["staff", "overview", identifier, "orders"],
+    queryFn: () => fetchTableOrders(identifier!),
+    enabled: open && hasActiveTable && !!identifier,
+    staleTime: 0,
+    refetchOnWindowFocus: false,
+  })
+  const {
+    data: billHistory = [],
+    isLoading: billHistoryLoading,
+    refetch: refetchBillHistory,
+  } = useQuery({
+    queryKey: ["staff", "overview", identifier, "bills"],
+    queryFn: () => fetchTableBills(identifier!),
+    enabled: open && hasActiveTable && !!identifier,
+    staleTime: 0,
+    refetchOnWindowFocus: false,
+  })
+
+  if (!deviceTable?.table || !identifier) return null
+
+  const handleCloseCurrentBill = async () => {
+    const isClosed = await onCloseBill(identifier)
+    if (!isClosed) return
+
+    await Promise.all([refetchBill(), refetchOrders(), refetchBillHistory()])
+    onOpenChange(false)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <IconCreditCard className="h-4 w-4" />
+            <span>{deviceTable.deviceName} 결제</span>
+          </DialogTitle>
+          <DialogDescription>현재 bill과 결제 이력을 관리합니다.</DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-muted-foreground">현재 결제</p>
+              <p className="text-sm">bill, 주문, 선물 내역</p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                void Promise.all([refetchBill(), refetchOrders(), refetchBillHistory()])
+              }}
+              disabled={billFetching}
+            >
+              <IconRefresh className={cn("size-4", billFetching && "animate-spin")} />
+            </Button>
+          </div>
+
+          {billLoading || ordersLoading ? (
+            <Skeleton className="h-24 w-full" />
+          ) : !currentBill ? (
+            <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+              현재 open bill이 없습니다.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-xs text-muted-foreground">Bill ID</p>
+                  <p className="font-medium">{getBillId(currentBill) ?? "-"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">상태</p>
+                  <div className="mt-1">
+                    <Badge variant={getBillStatus(currentBill) === "OPEN" ? "secondary" : "default"}>
+                      {getBillStatus(currentBill)}
+                    </Badge>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">총액</p>
+                  <p className="font-medium">{formatAmount(getBillTotalAmount(currentBill))}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">생성 시각</p>
+                  <p className="font-medium">{formatDateTime(getBillCreatedAt(currentBill))}</p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground">주문 내역</p>
+                {getOrderItems(currentOrders || currentBill).length === 0 ? (
+                  <p className="text-sm text-muted-foreground">주문 내역이 없습니다.</p>
+                ) : (
+                  getOrderItems(currentOrders || currentBill).map((item, index) => (
+                    <LineItemRow
+                      key={item.id ?? item.orderItemId ?? `${getLineItemName(item)}-${index}`}
+                      item={item}
+                    />
+                  ))
+                )}
+              </div>
+
+              {getGiftItems(currentOrders || currentBill).length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">선물 내역</p>
+                  {getGiftItems(currentOrders || currentBill).map((item, index) => (
+                    <LineItemRow
+                      key={item.id ?? item.giftId ?? `${getLineItemName(item)}-${index}`}
+                      item={item}
+                    />
+                  ))}
+                </div>
+              )}
+
               <Button
-                variant="destructive"
-                onClick={() => onDelete(deviceTable.table?.tableId || deviceTable.deviceId)}
-                disabled={isDeleting}
+                className="w-full"
+                onClick={() => void handleCloseCurrentBill()}
+                disabled={isBilling}
               >
-                {isDeleting ? "삭제 중..." : "테이블 삭제"}
+                <IconCreditCard className="mr-2 h-4 w-4" />
+                {isBilling ? "결제 처리 중..." : "결제 마감"}
               </Button>
+            </div>
+          )}
+
+          <Separator />
+
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">Bill 히스토리</p>
+            {billHistoryLoading ? (
+              <Skeleton className="h-20 w-full" />
+            ) : billHistory.length === 0 ? (
+              <p className="text-sm text-muted-foreground">히스토리 데이터가 없습니다.</p>
+            ) : (
+              <div className="space-y-2">
+                {billHistory.slice(0, 5).map((bill) => (
+                  <div
+                    key={getBillId(bill) ?? `${getBillCreatedAt(bill)}-${getBillTotalAmount(bill)}`}
+                    className="flex items-center justify-between rounded-lg border p-3 text-sm"
+                  >
+                    <div>
+                      <p className="font-medium">#{getBillId(bill) ?? "-"}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatDateTime(getBillCreatedAt(bill))}
+                        {getBillClosedAt(bill) ? ` / ${formatDateTime(getBillClosedAt(bill))} 종료` : ""}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <Badge variant="outline">{getBillStatus(bill)}</Badge>
+                      <p className="mt-1 font-medium">{formatAmount(getBillTotalAmount(bill))}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </div>
@@ -322,6 +628,8 @@ function TableDetailDialog({
 export function TableOverview() {
   const [selectedDeviceId, setSelectedDeviceId] = React.useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = React.useState(false)
+  const [billingOpen, setBillingOpen] = React.useState(false)
+  const [isBilling, setIsBilling] = React.useState(false)
 
   const queryClient = useQueryClient()
   const { data: devices = [], isLoading: devicesLoading, isFetching: devicesFetching, isError: devicesError, error: devicesErrorData } = useDevices()
@@ -372,6 +680,11 @@ export function TableOverview() {
     setDialogOpen(true)
   }
 
+  const handleOpenBilling = () => {
+    setDialogOpen(false)
+    setBillingOpen(true)
+  }
+
   const handleMuteToggle = async (roomId: number, deviceId: string) => {
     try {
       await toggleMute(roomId, deviceId)
@@ -403,8 +716,25 @@ export function TableOverview() {
       toast.success("테이블이 삭제되었습니다")
       setDialogOpen(false)
     } catch (err) {
-      const message = err instanceof Error ? err.message : "삭제에 실패했습니다"
+      const message = getApiErrorMessage(err, "삭제에 실패했습니다")
       toast.error(message)
+    }
+  }
+
+  const handleCloseBill = async (identifier: string): Promise<boolean> => {
+    try {
+      setIsBilling(true)
+      await closeTableBill(identifier)
+      const tablesData = await fetchTables()
+      queryClient.setQueryData(tableKeys.list(), tablesData)
+      toast.success("결제가 마감되었습니다")
+      return true
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "결제 마감에 실패했습니다"
+      toast.error(message)
+      return false
+    } finally {
+      setIsBilling(false)
     }
   }
 
@@ -412,13 +742,13 @@ export function TableOverview() {
     setIsRefreshing(true)
     try {
       // 디바이스 + 테이블 API 호출 후 캐시 직접 업데이트
-      const [_, tablesData] = await Promise.all([
+      const [, tablesData] = await Promise.all([
         queryClient.invalidateQueries({ queryKey: adminKeys.devices() }),
         fetchTables(),
       ])
       // 테이블 데이터를 캐시에 스냅샷처럼 설정
       queryClient.setQueryData(tableKeys.list(), tablesData)
-    } catch (err) {
+    } catch {
       toast.error("새로고침에 실패했습니다")
     } finally {
       setIsRefreshing(false)
@@ -571,6 +901,15 @@ export function TableOverview() {
         isDeleting={deleteTable.isPending}
         onMuteToggle={handleMuteToggle}
         onLiftSanction={handleLiftSanction}
+        onOpenBilling={handleOpenBilling}
+      />
+
+      <TableBillingDialog
+        deviceTable={selectedDeviceTable}
+        open={billingOpen}
+        onOpenChange={setBillingOpen}
+        isBilling={isBilling}
+        onCloseBill={handleCloseBill}
       />
     </>
   )

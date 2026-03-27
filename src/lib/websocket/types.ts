@@ -12,6 +12,8 @@ export enum NotificationType {
   ROOM_SANCTION_LIFTED = "ROOM_SANCTION_LIFTED",
   // 채팅 모니터 실시간 이벤트
   CHAT_NEW_MESSAGE = "CHAT_NEW_MESSAGE",
+  CHAT_GIFT_SENT = "CHAT_GIFT_SENT",
+  CHAT_GIFT_RECEIVED = "CHAT_GIFT_RECEIVED",
   CHAT_ROOM_CREATED = "CHAT_ROOM_CREATED",
   CHAT_ROOM_CLOSED = "CHAT_ROOM_CLOSED",
   CHAT_ROOM_UPDATED = "CHAT_ROOM_UPDATED",
@@ -27,18 +29,22 @@ export interface RoomSanctionLiftedMessage {
 export interface ChatMonitorMessage {
   type:
     | NotificationType.CHAT_NEW_MESSAGE
+    | NotificationType.CHAT_GIFT_SENT
+    | NotificationType.CHAT_GIFT_RECEIVED
     | NotificationType.CHAT_ROOM_CREATED
     | NotificationType.CHAT_ROOM_CLOSED
     | NotificationType.CHAT_ROOM_UPDATED
     | NotificationType.ROOM_SANCTION_LIFTED
   roomId: number
   timestamp: string
+  eventType?: string
   // CHAT_NEW_MESSAGE일 때 메시지 데이터 (백엔드 필드명 기준)
   messageId?: number
   senderDeviceId?: string
   senderTableName?: string
   content?: string
   messageType?: string
+  giftType?: string
   createdAt?: string
   // CHAT_ROOM_CREATED / CHAT_ROOM_UPDATED일 때 방 데이터
   room?: {
@@ -125,4 +131,5 @@ export interface Activity {
   time: string
   staff: string | null
   isNew: boolean
+  href?: string | null
 }

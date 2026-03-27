@@ -34,6 +34,7 @@ export interface AppSecretResponse {
 export interface ApiErrorResponse {
   timestamp: string
   status: number
+  code?: string
   error: string
   message: string
   path: string
@@ -76,7 +77,7 @@ async function handleResponse<T>(response: Response): Promise<T> {
   
   try {
     text = await response.text();
-  } catch (e) {
+  } catch {
     if (!isOk) {
       throw new AdminApiError(
         `요청 실패 (상태 코드: ${response.status})`,
@@ -108,7 +109,8 @@ async function handleResponse<T>(response: Response): Promise<T> {
 
     throw new AdminApiError(
       errorData.message || errorData.error || "요청 처리에 실패했습니다",
-      errorData.status || response.status
+      errorData.status || response.status,
+      errorData.code
     )
   }
 
@@ -119,7 +121,7 @@ async function handleResponse<T>(response: Response): Promise<T> {
 
   try {
     return JSON.parse(text) as T
-  } catch (e) {
+  } catch {
     return text as unknown as T
   }
 }

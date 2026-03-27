@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import {
   IconBell,
   IconGift,
@@ -77,15 +77,31 @@ const typeConfig: Record<ActivityType, { icon: typeof IconBell; color: string; b
 }
 
 export function SiteHeader() {
+  const router = useRouter()
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
-  const { notifications, unreadCount, isShaking, markAllAsRead, removeNotification, clearAllNotifications } = useNotifications()
+  const {
+    notifications,
+    unreadCount,
+    isShaking,
+    markAllAsRead,
+    markNotificationAsRead,
+    removeNotification,
+    clearAllNotifications,
+  } = useNotifications()
 
   const pageTitle = pageTitles[pathname] || "Dashboard"
 
   const handleMarkAllAsRead = () => {
     markAllAsRead()
     setOpen(false)
+  }
+
+  const handleNotificationClick = (id: number, href?: string | null) => {
+    markNotificationAsRead(id)
+    if (!href || href === pathname) return
+    setOpen(false)
+    router.push(href)
   }
 
   return (
@@ -147,9 +163,11 @@ export function SiteHeader() {
                       <div
                         key={activity.id}
                         className={cn(
-                          "group flex items-start gap-3 rounded-lg border p-4 transition-colors relative",
+                          "group relative flex items-start gap-3 rounded-lg border p-4 transition-colors",
+                          activity.href && "cursor-pointer hover:bg-accent/40",
                           activity.isNew && "bg-accent/50"
                         )}
+                        onClick={() => handleNotificationClick(activity.id, activity.href)}
                       >
                         <div className={cn("rounded-full p-2", config.bg)}>
                           <Icon className={cn("size-4", config.color)} />
@@ -178,7 +196,10 @@ export function SiteHeader() {
                           variant="ghost"
                           size="icon"
                           className="absolute top-2 right-2 size-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                          onClick={() => removeNotification(activity.id)}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            removeNotification(activity.id)
+                          }}
                         >
                           <IconX className="size-3" />
                         </Button>
@@ -209,4 +230,3 @@ export function SiteHeader() {
     </header>
   )
 }
-

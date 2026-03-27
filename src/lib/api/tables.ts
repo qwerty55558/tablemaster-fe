@@ -148,6 +148,7 @@ export interface AvailableDevice {
 export interface ApiErrorResponse {
   timestamp: string
   status: number
+  code?: string
   error: string
   message: string
   path: string
@@ -190,7 +191,7 @@ async function handleResponse<T>(response: Response): Promise<T> {
   
   try {
     text = await response.text();
-  } catch (e) {
+  } catch {
     if (!isOk) {
       throw new TablesApiError(
         `요청 실패 (상태 코드: ${response.status})`,
@@ -222,7 +223,8 @@ async function handleResponse<T>(response: Response): Promise<T> {
 
     throw new TablesApiError(
       errorData.message || errorData.error || "요청 처리에 실패했습니다",
-      errorData.status || response.status
+      errorData.status || response.status,
+      errorData.code
     )
   }
 
@@ -233,7 +235,7 @@ async function handleResponse<T>(response: Response): Promise<T> {
 
   try {
     return JSON.parse(text) as T
-  } catch (e) {
+  } catch {
     return text as unknown as T
   }
 }
@@ -319,12 +321,13 @@ export async function setupTableForDevice(data: SetupTableForDeviceRequest): Pro
 
 /**
  * 테이블 삭제 (관리자/스태프용)
- * 백엔드에서 TABLE_REMOVED delta 발행
+ * 현재 목록 응답의 data.id 식별자를 그대로 사용한다.
+ * 백엔드에서 deviceId 우선, tableId(name) 차선으로 해석한다.
  */
-export async function deleteTable(tableId: string): Promise<void> {
+export async function deleteTable(identifier: string): Promise<void> {
   const headers = await getAuthHeaders()
 
-  const response = await fetch(`${API_BASE_URL}/api/v1/tables/${tableId}`, {
+  const response = await fetch(`${API_BASE_URL}/api/v1/tables/${identifier}`, {
     method: "DELETE",
     headers,
   })

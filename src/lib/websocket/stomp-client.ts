@@ -90,3 +90,4 @@ export function publishToTable(
 export const ADMIN_TOPIC = "/topic/role.ADMIN"
 export const TABLES_TOPIC = "/topic/tables"
 export const STAFF_CHAT_MONITOR_TOPIC = "/topic/staff.chat.monitor"
+export const USER_CHAT_QUEUE = "/user/queue/chat"

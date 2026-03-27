@@ -47,3 +47,5 @@ docker buildx build --platform linux/amd64 \
 ## Notes
 - `.env.production`에서 환경변수를 반드시 읽어서 build-arg로 전달할 것.
 - colima 부스트 메모리는 16GB 고정.
+- 빌드 후 colima 원상 복구는 사용자가 직접 수행한다.
+- 빌더는 정리한다

@@ -20,7 +20,7 @@ import { Input } from "@/components/ui/input"
 import { LogoIcon } from "@/components/ui/logo"
 import { SignupSuccessToast } from "@/components/signup-success-toast"
 
-interface LoginFormProps extends React.ComponentProps<"div"> {}
+type LoginFormProps = React.ComponentProps<"div">
 
 export function LoginForm({
   className,

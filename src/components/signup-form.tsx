@@ -1,4 +1,5 @@
 "use client"
+/* eslint-disable react-hooks/incompatible-library */
 
 import { useState, useCallback, useEffect, useMemo } from "react"
 import Link from "next/link"
@@ -9,7 +10,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import {
   Field,
-  FieldDescription,
   FieldError,
   FieldGroup,
   FieldLabel,
@@ -161,7 +161,7 @@ export function SignupForm({
         setEmailCheckStatus("unavailable")
         setEmailCheckMessage(result.message || "이미 사용 중인 이메일입니다")
       }
-    } catch (error) {
+    } catch {
       setEmailCheckStatus("error")
       setEmailCheckMessage("이메일 확인 중 오류가 발생했습니다. 다시 시도해주세요.")
     }
